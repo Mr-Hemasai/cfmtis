@@ -44,6 +44,7 @@ export type GraphNode = {
   label: string;
   bankName: string;
   holderName: string;
+  phoneNumber?: string | null;
   amountReceived: number;
   currentBalance: number;
   chainDepth: number;

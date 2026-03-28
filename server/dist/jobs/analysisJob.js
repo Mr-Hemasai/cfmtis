@@ -1,7 +1,7 @@
 import Queue from "bull";
 import { prisma } from "../prisma/client.js";
 import { parseEvidenceFile } from "../services/parserService.js";
-import { ingestAnalyzerDatasetForCase } from "../services/analyzerEngine.js";
+import { runAnalyzerForCase } from "../services/analyzerService.js";
 import { detectPatterns } from "../services/patternDetector.js";
 import { calculateRiskScore, classifyRiskLevel } from "../services/riskEngine.js";
 import { env } from "../utils/env.js";
@@ -74,7 +74,7 @@ export const processCaseAnalysis = async (caseId) => {
             /\.xlsx?$/i.test(file.storageKey));
         if (analyzerWorkbook?.storageKey) {
             setProgress(caseId, AnalysisStatus.RUNNING, 1);
-            await ingestAnalyzerDatasetForCase(analyzerWorkbook.storageKey, {
+            await runAnalyzerForCase(analyzerWorkbook.storageKey, {
                 id: caseRecord.id,
                 complaintId: caseRecord.complaintId,
                 fraudAmount: caseRecord.fraudAmount,
@@ -83,6 +83,12 @@ export const processCaseAnalysis = async (caseId) => {
                 victimMobile: caseRecord.victimMobile,
                 bankName: caseRecord.bankName
             });
+            await prisma.case.update({
+                where: { id: caseId },
+                data: { analysisStatus: AnalysisStatus.DONE }
+            });
+            setProgress(caseId, AnalysisStatus.DONE, 9);
+            return;
         }
         setProgress(caseId, AnalysisStatus.RUNNING, 1);
         const parsedFiles = await Promise.all(caseRecord.files

@@ -5,10 +5,12 @@ import { RiskPill } from "../ui/Badge";
 
 export const NodeDetailCard = ({
   node,
-  onFreeze
+  onFreeze,
+  onMarkInnocent
 }: {
   node: GraphNode | null;
   onFreeze: (accountId: string) => void;
+  onMarkInnocent: (accountId: string) => void;
 }) => {
   if (!node) {
     return <div className="panel-card p-4 font-mono text-sm text-dim">Select a node to inspect trace details.</div>;
@@ -20,6 +22,7 @@ export const NodeDetailCard = ({
       <div className="mt-1 text-lg text-primary">{node.holderName}</div>
       <div className="mt-1 text-sm text-secondary">{node.bankName}</div>
       <div className="mt-4 grid gap-2 text-sm text-secondary">
+        <div>Phone: {node.phoneNumber ?? "Unknown"}</div>
         <div>Amount Received: {formatINR(node.amountReceived)}</div>
         <div>Balance: {formatINR(node.currentBalance)}</div>
         <div>Depth: {node.chainDepth}</div>
@@ -34,15 +37,23 @@ export const NodeDetailCard = ({
       <div className="risk-bar mt-3 h-2">
         <span style={{ width: `${node.riskScore}%`, background: riskColor(node.riskLevel) }} />
       </div>
-      <Button
-        variant="danger"
-        fullWidth
-        disabled={node.isFrozen}
-        className="mt-4"
-        onClick={() => onFreeze(node.id)}
-      >
-        {node.isFrozen ? "Frozen" : "Freeze Account"}
-      </Button>
+      <div className="mt-4 grid gap-3">
+        <Button
+          variant="danger"
+          fullWidth
+          disabled={node.isFrozen}
+          onClick={() => onFreeze(node.id)}
+        >
+          {node.isFrozen ? "Frozen" : "Freeze Account"}
+        </Button>
+        <Button
+          fullWidth
+          disabled={node.nodeType === "Recovered" && node.riskLevel === "LOW"}
+          onClick={() => onMarkInnocent(node.id)}
+        >
+          {node.nodeType === "Recovered" && node.riskLevel === "LOW" ? "Marked Innocent" : "Mark Innocent Entity"}
+        </Button>
+      </div>
     </div>
   );
 };

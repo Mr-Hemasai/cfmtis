@@ -6,6 +6,7 @@ import {
   ParsedDataset,
   parseAnalyzerWorkbook
 } from "./analyzerWorkbookService.js";
+import { getPythonAnalyzerReport } from "./pythonAnalyzer.js";
 
 type CaseBundle = {
   acknowledgementNo: string;
@@ -26,11 +27,121 @@ type ExistingCaseTarget = {
   bankName: string;
 };
 
+const derivePrimaryVictim = (bundle: CaseBundle) => {
+  const transfers = bundle.transfers;
+  if (!transfers.length) {
+    return {
+      accountNumber: undefined,
+      bankName: undefined,
+      victimName: undefined,
+      victimMobile: undefined
+    };
+  }
+
+  const inbound = new Map<string, number>();
+  const outbound = new Map<string, number>();
+  const sentAmount = new Map<string, number>();
+  const profile = new Map<
+    string,
+    { bankName?: string; victimName?: string; victimMobile?: string; earliest: number }
+  >();
+
+  for (const transfer of transfers) {
+    inbound.set(transfer.receiverAccount, (inbound.get(transfer.receiverAccount) ?? 0) + 1);
+    outbound.set(transfer.senderAccount, (outbound.get(transfer.senderAccount) ?? 0) + 1);
+    sentAmount.set(
+      transfer.senderAccount,
+      (sentAmount.get(transfer.senderAccount) ?? 0) + transfer.amount
+    );
+
+    const ts = transfer.timestamp?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const current = profile.get(transfer.senderAccount);
+    if (!current || ts < current.earliest) {
+      profile.set(transfer.senderAccount, {
+        bankName: transfer.senderBankName,
+        victimName: transfer.victimName,
+        victimMobile: transfer.victimMobile,
+        earliest: ts
+      });
+    }
+  }
+
+  const candidates = [...new Set(transfers.map((item) => item.senderAccount))].sort((left, right) => {
+    const leftInbound = inbound.get(left) ?? 0;
+    const rightInbound = inbound.get(right) ?? 0;
+    if (leftInbound === 0 && rightInbound !== 0) return -1;
+    if (rightInbound === 0 && leftInbound !== 0) return 1;
+
+    const amountDelta = (sentAmount.get(right) ?? 0) - (sentAmount.get(left) ?? 0);
+    if (amountDelta !== 0) return amountDelta;
+
+    const countDelta = (outbound.get(right) ?? 0) - (outbound.get(left) ?? 0);
+    if (countDelta !== 0) return countDelta;
+
+    return (profile.get(left)?.earliest ?? Number.MAX_SAFE_INTEGER) - (profile.get(right)?.earliest ?? Number.MAX_SAFE_INTEGER);
+  });
+
+  const accountNumber = candidates[0] ?? transfers[0]?.senderAccount;
+  const details = accountNumber ? profile.get(accountNumber) : undefined;
+
+  return {
+    accountNumber,
+    bankName: details?.bankName,
+    victimName: details?.victimName,
+    victimMobile: details?.victimMobile
+  };
+};
+
 const riskLevelFromScore = (score: number) => {
   if (score >= 85) return "CRITICAL";
   if (score >= 65) return "HIGH";
   if (score >= 40) return "MEDIUM";
   return "LOW";
+};
+
+const digitsOnly = (value?: string | null) => String(value ?? "").replace(/\D+/g, "");
+const hasEnoughDigits = (value?: string | null, min = 8) => digitsOnly(value).length >= min;
+
+const accountCandidates = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+
+  const candidates = new Set<string>([raw, digitsOnly(raw)]);
+  const scientificMatch = raw.match(/^(\d+(?:\.\d+)?)e\+?(\d+)$/i);
+  if (scientificMatch) {
+    const [, mantissa, exponentText] = scientificMatch;
+    const exponent = Number(exponentText);
+    const mantissaDigits = mantissa.replace(".", "");
+    const decimals = mantissa.includes(".") ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
+    const expanded = `${mantissaDigits}${"0".repeat(Math.max(exponent - decimals, 0))}`;
+    candidates.add(expanded);
+    const stablePrefix = mantissaDigits.slice(0, Math.min(mantissaDigits.length, 6));
+    if (stablePrefix) {
+      candidates.add(stablePrefix);
+    }
+  }
+
+  return [...candidates].filter(Boolean);
+};
+
+const isReliableAccountInput = (value?: string | null) =>
+  accountCandidates(value).some((candidate) => /^\d+$/.test(candidate) && candidate.length >= 8);
+
+const accountMatches = (left?: string | null, right?: string | null) => {
+  const leftCandidates = accountCandidates(left);
+  const rightCandidates = accountCandidates(right);
+  if (!leftCandidates.length || !rightCandidates.length) return false;
+
+  return leftCandidates.some((leftValue) =>
+    rightCandidates.some((rightValue) => {
+      if (!leftValue || !rightValue) return false;
+      return (
+        leftValue === rightValue ||
+        (leftValue.length >= 6 && rightValue.startsWith(leftValue)) ||
+        (rightValue.length >= 6 && leftValue.startsWith(rightValue))
+      );
+    })
+  );
 };
 
 const getBundleStartTimestamp = (bundle: CaseBundle) => {
@@ -58,6 +169,24 @@ const deriveExposureAmount = (bundle: CaseBundle) => {
 
 const buildMoneyTrail = (bundle: CaseBundle) => {
   const transfers = bundle.transfers;
+  const participantProfiles = Object.fromEntries(
+    transfers.flatMap((item) => [
+      [
+        item.senderAccount,
+        {
+          holderName: item.senderName ?? null,
+          phoneNumber: item.senderPhone ?? null
+        }
+      ],
+      [
+        item.receiverAccount,
+        {
+          holderName: item.receiverName ?? null,
+          phoneNumber: item.receiverPhone ?? null
+        }
+      ]
+    ])
+  );
 
   if (!transfers.length) {
     const accountNodes = [
@@ -121,6 +250,7 @@ const buildMoneyTrail = (bundle: CaseBundle) => {
         multipleReceivers: false,
         repeatedAccounts: false
       },
+      participantProfiles,
       graphMode: "RELATIONSHIP_FALLBACK"
     };
   }
@@ -145,7 +275,7 @@ const buildMoneyTrail = (bundle: CaseBundle) => {
 
   const visited = new Set<string>();
   const path: string[] = [];
-  const root = transfers[0]?.senderAccount;
+  const root = derivePrimaryVictim(bundle).accountNumber ?? transfers[0]?.senderAccount;
   const dfs = (node?: string) => {
     if (!node || visited.has(node)) return;
     visited.add(node);
@@ -185,6 +315,7 @@ const buildMoneyTrail = (bundle: CaseBundle) => {
       multipleReceivers: [...senderCount.values()].some((count) => count > 2),
       repeatedAccounts: [...receiverCount.values()].some((count) => count > 1)
     },
+    participantProfiles,
     graphMode: "TRANSFER"
   };
 };
@@ -413,11 +544,55 @@ const selectBundleForExistingCase = (
     return exactComplaintMatch;
   }
 
-  const victimAccountMatch = bundles.find((bundle) =>
-    bundle.transfers.some((transfer) => transfer.senderAccount === caseRecord.victimAccount)
-  );
-  if (victimAccountMatch) {
-    return victimAccountMatch;
+  if (isReliableAccountInput(caseRecord.victimAccount)) {
+    const victimAccountMatch = bundles.find((bundle) =>
+      bundle.transfers.some(
+        (transfer) =>
+          accountMatches(transfer.senderAccount, caseRecord.victimAccount) ||
+          accountMatches(transfer.receiverAccount, caseRecord.victimAccount)
+      )
+    );
+    if (victimAccountMatch) {
+      return victimAccountMatch;
+    }
+  }
+
+  const normalizedVictimName = caseRecord.victimName.trim().toLowerCase();
+  if (normalizedVictimName) {
+    const victimNameMatch = bundles.find((bundle) =>
+      bundle.transfers.some(
+        (transfer) => transfer.victimName?.trim().toLowerCase() === normalizedVictimName
+      )
+    );
+    if (victimNameMatch) {
+      return victimNameMatch;
+    }
+  }
+
+  const normalizedVictimMobile = caseRecord.victimMobile.trim().toLowerCase();
+  if (normalizedVictimMobile) {
+    const victimMobileMatch = bundles.find((bundle) =>
+      bundle.transfers.some(
+        (transfer) => transfer.victimMobile?.trim().toLowerCase() === normalizedVictimMobile
+      )
+    );
+    if (victimMobileMatch) {
+      return victimMobileMatch;
+    }
+  }
+
+  if (caseRecord.fraudAmount > 0 && (!isReliableAccountInput(caseRecord.victimAccount) || !hasEnoughDigits(caseRecord.complaintId))) {
+    return bundles
+      .slice()
+      .sort((left, right) => {
+        const amountDelta =
+          Math.abs(calculateBundleAmount(left) - caseRecord.fraudAmount) -
+          Math.abs(calculateBundleAmount(right) - caseRecord.fraudAmount);
+        if (amountDelta !== 0) {
+          return amountDelta;
+        }
+        return calculateBundleEvidenceScore(right) - calculateBundleEvidenceScore(left);
+      })[0] ?? null;
   }
 
   return bundles
@@ -582,7 +757,7 @@ const syncBundleToDatabase = async (caseId: string, bundle: CaseBundle) => {
 };
 
 const ensureCase = async (bundle: CaseBundle, officerId: string) => {
-  const primaryTransfer = bundle.transfers[0];
+  const primaryVictim = derivePrimaryVictim(bundle);
   const totalAmount = deriveExposureAmount(bundle);
   const fraudTimestamp =
     bundle.transfers.map((item) => item.timestamp).find(Boolean) ??
@@ -595,10 +770,10 @@ const ensureCase = async (bundle: CaseBundle, officerId: string) => {
       complaintId: bundle.acknowledgementNo,
       fraudType: "Dataset Import",
       fraudAmount: totalAmount,
-      victimAccount: primaryTransfer?.senderAccount ?? `ACK-${bundle.acknowledgementNo}`,
-      victimName: primaryTransfer?.victimName ?? "Imported Complainant",
-      victimMobile: primaryTransfer?.victimMobile ?? "Unknown",
-      bankName: primaryTransfer?.senderBankName ?? "Unknown Bank",
+      victimAccount: primaryVictim.accountNumber ?? `ACK-${bundle.acknowledgementNo}`,
+      victimName: primaryVictim.victimName ?? "Imported Complainant",
+      victimMobile: primaryVictim.victimMobile ?? "Unknown",
+      bankName: primaryVictim.bankName ?? "Unknown Bank",
       fraudTimestamp: fraudTimestamp ?? new Date(),
       description: `Imported from analyzer dataset for acknowledgement ${bundle.acknowledgementNo}.`,
       officerId
@@ -606,10 +781,10 @@ const ensureCase = async (bundle: CaseBundle, officerId: string) => {
     update: {
       fraudAmount: totalAmount,
       fraudTimestamp: fraudTimestamp ?? new Date(),
-      victimAccount: primaryTransfer?.senderAccount ?? undefined,
-      victimName: primaryTransfer?.victimName ?? undefined,
-      victimMobile: primaryTransfer?.victimMobile ?? undefined,
-      bankName: primaryTransfer?.senderBankName ?? undefined,
+      victimAccount: primaryVictim.accountNumber ?? undefined,
+      victimName: primaryVictim.victimName ?? undefined,
+      victimMobile: primaryVictim.victimMobile ?? undefined,
+      bankName: primaryVictim.bankName ?? undefined,
       description: `Imported from analyzer dataset for acknowledgement ${bundle.acknowledgementNo}.`
     }
   });
@@ -691,6 +866,7 @@ export const ingestAnalyzerDatasetForCase = async (
   }
 
   const primaryTransfer = bundle.transfers[0];
+  const primaryVictim = derivePrimaryVictim(bundle);
   const fraudTimestamp =
     bundle.transfers.map((item) => item.timestamp).find(Boolean) ??
     bundle.withdrawals.map((item) => item.timestamp).find(Boolean) ??
@@ -702,10 +878,10 @@ export const ingestAnalyzerDatasetForCase = async (
     data: {
       fraudAmount: totalAmount || caseRecord.fraudAmount,
       fraudTimestamp: fraudTimestamp ?? undefined,
-      victimAccount: primaryTransfer?.senderAccount || caseRecord.victimAccount,
-      bankName: primaryTransfer?.senderBankName || caseRecord.bankName,
-      victimName: caseRecord.victimName || primaryTransfer?.victimName || undefined,
-      victimMobile: caseRecord.victimMobile || primaryTransfer?.victimMobile || undefined
+      victimAccount: primaryVictim.accountNumber || caseRecord.victimAccount,
+      bankName: primaryVictim.bankName || caseRecord.bankName,
+      victimName: caseRecord.victimName || primaryVictim.victimName || undefined,
+      victimMobile: caseRecord.victimMobile || primaryVictim.victimMobile || undefined
     }
   });
 
@@ -985,6 +1161,11 @@ const buildAnalyzerReport = (
 };
 
 export const analyzeWorkbookFile = (filePath: string) => {
+  const pythonReport = getPythonAnalyzerReport(filePath);
+  if (pythonReport) {
+    return pythonReport;
+  }
+
   const parsed = parseAnalyzerWorkbook(filePath);
   const bundleMap = deriveBundleMap(parsed);
   const diagnostics = buildDatasetDiagnostics(bundleMap);

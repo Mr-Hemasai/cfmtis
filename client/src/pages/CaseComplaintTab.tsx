@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import axios from "axios";
 import { analyzeCase as analyzeCaseApi, getFiles, getGraph, getRecovery, getRisk, uploadFiles } from "../api/analysis";
 import { updateCase } from "../api/cases";
 import { ComplaintForm } from "../components/complaint/ComplaintForm";
@@ -21,6 +22,7 @@ export const CaseComplaintTab = () => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [polling, setPolling] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const analysis = useCaseStore((state) => state.analysis);
   const uploadedFiles = useCaseStore((state) => state.uploadedFiles);
   const setUploadedFiles = useCaseStore((state) => state.setUploadedFiles);
@@ -28,6 +30,7 @@ export const CaseComplaintTab = () => {
   const setRiskData = useCaseStore((state) => state.setRiskData);
   const setRecoveryData = useCaseStore((state) => state.setRecoveryData);
   const setPatternAlerts = useCaseStore((state) => state.setPatternAlerts);
+  const updateCaseAnalysisStatus = useCaseStore((state) => state.updateCaseAnalysisStatus);
   const setGraph = useGraphStore((state) => state.setGraph);
   const mergedFiles = useMemo(() => {
     const persisted = (uploadedFiles as Array<Record<string, unknown>>).map((file, index) => ({
@@ -49,6 +52,8 @@ export const CaseComplaintTab = () => {
   }, [pendingFiles, uploadedFiles]);
 
   useAnalysis(caseId, polling, async (statusData) => {
+    updateCaseAnalysisStatus(caseId, statusData.status as "PENDING" | "QUEUED" | "RUNNING" | "DONE" | "FAILED");
+
     if (statusData.status === "FAILED") {
       setPolling(false);
       setAnalysisError(statusData.error ?? "Analysis failed for the uploaded document.");
@@ -71,24 +76,54 @@ export const CaseComplaintTab = () => {
   });
 
   const handleSave = async (values: Record<string, string>) => {
-    await updateCase(caseId, values);
+    setSaveError(null);
+
+    try {
+      await updateCase(caseId, values);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        setSaveError(String(error.response?.data?.message ?? "Unable to save complaint details."));
+        return;
+      }
+
+      setSaveError("Unable to save complaint details.");
+    }
   };
 
   const handleAnalyze = async () => {
     setAnalysisError(null);
-    if (pendingFiles.length) {
-      const uploaded = await uploadFiles(caseId, pendingFiles);
-      setUploadedFiles(uploaded);
-      setPendingFiles([]);
+
+    try {
+      if (pendingFiles.length) {
+        const uploaded = await uploadFiles(caseId, pendingFiles);
+        setUploadedFiles(uploaded);
+        setPendingFiles([]);
+      }
+
+      const response = await analyzeCaseApi(caseId);
+      updateCaseAnalysisStatus(caseId, response.status as "PENDING" | "QUEUED" | "RUNNING" | "DONE" | "FAILED");
+      setAnalysis({ status: response.status, steps: response.steps, progress: 8, currentStep: response.steps[0] });
+      setPolling(true);
+    } catch (error) {
+      setPolling(false);
+
+      if (axios.isAxiosError(error)) {
+        setAnalysisError(String(error.response?.data?.message ?? "Unable to start analysis."));
+        return;
+      }
+
+      setAnalysisError("Unable to start analysis.");
     }
-    const response = await analyzeCaseApi(caseId);
-    setAnalysis({ status: response.status, steps: response.steps, progress: 8, currentStep: response.steps[0] });
-    setPolling(true);
   };
 
   return (
     <div className="grid gap-6">
       <ComplaintForm initialValues={activeCase} onSubmit={handleSave} />
+      {saveError && (
+        <div className="rounded-[4px] border border-red/40 bg-red/8 px-4 py-3 text-sm text-red">
+          {saveError}
+        </div>
+      )}
       <section className="panel-card p-6">
         <div className="section-header">Upload Evidence Files</div>
         <UploadZone onFiles={(files) => setPendingFiles(files)} />

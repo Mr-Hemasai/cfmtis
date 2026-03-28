@@ -53,6 +53,11 @@ export const ComplaintForm = ({
   });
   const [form, setForm] = useState<Record<string, string>>(buildFormState);
 
+  const buildSubmitPayload = () => ({
+    ...form,
+    complaintId: form.complaintId.trim()
+  });
+
   useEffect(() => {
     setForm(buildFormState());
   }, [
@@ -90,7 +95,10 @@ export const ComplaintForm = ({
         </div>
       </div>
       <div className="mt-4 flex justify-end">
-        <button className="rounded-[3px] border border-cyan/50 px-4 py-2 font-cond uppercase tracking-[0.2em] text-cyan" onClick={() => onSubmit(form)}>
+        <button
+          className="rounded-[3px] border border-cyan/50 px-4 py-2 font-cond uppercase tracking-[0.2em] text-cyan"
+          onClick={() => onSubmit(buildSubmitPayload())}
+        >
           Save Complaint
         </button>
       </div>

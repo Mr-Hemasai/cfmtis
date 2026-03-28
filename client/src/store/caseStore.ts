@@ -22,6 +22,7 @@ type CaseState = {
   setAnalysis: (analysis: Partial<CaseState["analysis"]>) => void;
   setUploadedFiles: (files: Array<Record<string, unknown>>) => void;
   markFrozen: (accountId: string) => void;
+  updateCaseAnalysisStatus: (caseId: string, analysisStatus: CaseRecord["analysisStatus"]) => void;
 };
 
 export const useCaseStore = create<CaseState>((set) => ({
@@ -37,10 +38,42 @@ export const useCaseStore = create<CaseState>((set) => ({
   setActiveCase: (record) => set({ activeCase: record }),
   setRiskData: (items) => set({ riskData: items }),
   setRecoveryData: (payload) => set({ recoveryData: payload }),
-  setPatternAlerts: (alerts) => set({ patternAlerts: alerts }),
+  setPatternAlerts: (alerts) =>
+    set({
+      patternAlerts: (alerts ?? []).map((alert, index) => ({
+        id: String(alert?.id ?? `alert-${index}`),
+        type: String(alert?.type ?? "ANALYZER_ALERT"),
+        severity:
+          alert?.severity === "CRITICAL" ||
+          alert?.severity === "HIGH" ||
+          alert?.severity === "MEDIUM" ||
+          alert?.severity === "LOW"
+            ? alert.severity
+            : "MEDIUM",
+        message: String(alert?.message ?? "Analyzer detected a suspicious pattern.")
+      }))
+    }),
   setAnalysis: (analysis) =>
     set((state) => ({ analysis: { ...state.analysis, ...analysis } })),
   setUploadedFiles: (files) => set({ uploadedFiles: files }),
+  updateCaseAnalysisStatus: (caseId, analysisStatus) =>
+    set((state) => ({
+      activeCase:
+        state.activeCase?.id === caseId
+          ? {
+              ...state.activeCase,
+              analysisStatus
+            }
+          : state.activeCase,
+      cases: state.cases.map((item) =>
+        item.id === caseId
+          ? {
+              ...item,
+              analysisStatus
+            }
+          : item
+      )
+    })),
   markFrozen: (accountId) =>
     set((state) => {
       const next = new Set(state.frozenAccounts);
@@ -49,6 +82,14 @@ export const useCaseStore = create<CaseState>((set) => ({
       const nextRecoveryTotals = state.recoveryData.totals
         ? {
             ...state.recoveryData.totals,
+            recoverable:
+              state.recoveryData.totals.recoverable +
+              (frozenAccount && !frozenAccount.isFrozen ? frozenAccount.currentBalance : 0),
+            atRisk: Math.max(
+              state.recoveryData.totals.atRisk -
+                (frozenAccount && !frozenAccount.isFrozen ? frozenAccount.currentBalance : 0),
+              0
+            ),
             frozen:
               state.recoveryData.totals.frozen +
               (frozenAccount && !frozenAccount.isFrozen ? frozenAccount.currentBalance : 0)

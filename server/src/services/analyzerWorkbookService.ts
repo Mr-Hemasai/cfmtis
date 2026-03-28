@@ -1,4 +1,5 @@
 import * as XLSXModule from "xlsx";
+import { getPythonParsedDataset } from "./pythonAnalyzer.js";
 
 const XLSX = (XLSXModule as typeof XLSXModule & { default?: typeof XLSXModule }).default ?? XLSXModule;
 
@@ -9,6 +10,10 @@ export type DatasetTransferRow = {
   txnId: string;
   senderAccount: string;
   receiverAccount: string;
+  senderName?: string;
+  senderPhone?: string;
+  receiverName?: string;
+  receiverPhone?: string;
   amount: number;
   timestamp: Date | null;
   senderBankName?: string;
@@ -61,6 +66,10 @@ export type ParsedDataset = {
     totalRows: number;
   };
 };
+
+type PythonTransferRow = Omit<DatasetTransferRow, "timestamp"> & { timestamp: string | null };
+type PythonWithdrawalRow = Omit<DatasetWithdrawalRow, "timestamp"> & { timestamp: string | null };
+type PythonHoldRow = Omit<DatasetHoldRow, "timestamp"> & { timestamp: string | null };
 
 const normalizeKey = (value: string) =>
   value
@@ -206,6 +215,10 @@ const parseTransferSheet = (rows: GenericRow[]) =>
         txnId: primaryTxnId ?? `TXN-${index + 1}`,
         senderAccount: senderAccount ?? "UNKNOWN-SENDER",
         receiverAccount: receiverAccount ?? "UNKNOWN-RECEIVER",
+        senderName: undefined,
+        senderPhone: undefined,
+        receiverName: undefined,
+        receiverPhone: undefined,
         amount: toNumberValue(firstValue(row, ["Transaction Amount", "transaction_amount", "amount", "Disputed Amount"])),
         timestamp: toDateValue(firstValue(row, ["Transaction Date", "transaction_date", "timestamp", "date", "txn_date"])),
         senderBankName: toStringValue(firstValue(row, ["Bank/FIs", "bank_fis", "sender_bank", "debit_bank", "from_bank"])),
@@ -218,6 +231,49 @@ const parseTransferSheet = (rows: GenericRow[]) =>
         txnType: toStringValue(firstValue(row, ["txn_type", "channel", "mode"])) ?? "TRANSFER",
         victimName: toStringValue(firstValue(row, ["victim_name", "customer_name"])),
         victimMobile: toStringValue(firstValue(row, ["victim_mobile", "mobile", "customer_mobile"]))
+      };
+    })
+    .filter(Boolean) as DatasetTransferRow[];
+
+const parseGraphTransferSheet = (rows: GenericRow[]) =>
+  rows
+    .map(normalizeRow)
+    .map((row, index): DatasetTransferRow | null => {
+      const acknowledgementNo = toStringValue(
+        firstValue(row, ["complaint_id", "Acknowledgement No", "acknowledgement_no"])
+      );
+      const senderAccount = toStringValue(
+        firstValue(row, ["sender_account_number", "sender_account", "from_account"])
+      );
+      const receiverAccount = toStringValue(
+        firstValue(row, ["receiver_account_number", "receiver_account", "to_account"])
+      );
+
+      if (!acknowledgementNo || !senderAccount || !receiverAccount) return null;
+
+      const txnId = toStringValue(firstValue(row, ["transaction_id", "txn_id", "utr", "reference_no"]));
+
+      return {
+        acknowledgementNo,
+        txnId: txnId ?? `TXN-${index + 1}`,
+        senderAccount,
+        receiverAccount,
+        senderName: toStringValue(firstValue(row, ["sender_name", "victim_name", "customer_name"])),
+        senderPhone: toStringValue(firstValue(row, ["sender_phone", "sender_mobile", "victim_mobile", "mobile"])),
+        receiverName: toStringValue(firstValue(row, ["receiver_name", "beneficiary_name"])),
+        receiverPhone: toStringValue(firstValue(row, ["receiver_phone", "beneficiary_phone"])),
+        amount: toNumberValue(firstValue(row, ["amount", "transaction_amount"])),
+        timestamp: toDateValue(firstValue(row, ["timestamp", "transaction_date", "date"])),
+        senderBankName: toStringValue(firstValue(row, ["sender_bank_name", "sender_bank", "from_bank"])),
+        receiverBankName: toStringValue(firstValue(row, ["receiver_bank_name", "receiver_bank", "to_bank"])),
+        senderIfsc: undefined,
+        receiverIfsc: undefined,
+        layerLevel: 1,
+        referenceId: txnId,
+        status: "SUCCESS",
+        txnType: "TRANSFER",
+        victimName: toStringValue(firstValue(row, ["sender_name", "victim_name", "customer_name"])),
+        victimMobile: toStringValue(firstValue(row, ["sender_phone", "sender_mobile", "victim_mobile", "mobile"]))
       };
     })
     .filter(Boolean) as DatasetTransferRow[];
@@ -323,6 +379,37 @@ const parseHoldSheet = (rows: GenericRow[], actionType: string, sourceSheet: str
     .filter(Boolean) as DatasetHoldRow[];
 
 export const parseAnalyzerWorkbook = (filePath: string): ParsedDataset => {
+  const pythonParsed = getPythonParsedDataset(filePath);
+  if (pythonParsed) {
+    return {
+      transfers: (pythonParsed.transfers as PythonTransferRow[]).map((row) => ({
+        ...row,
+        timestamp: toDateValue(row.timestamp)
+      })),
+      withdrawals: (pythonParsed.withdrawals as PythonWithdrawalRow[]).map((row) => ({
+        ...row,
+        timestamp: toDateValue(row.timestamp)
+      })),
+      holds: (pythonParsed.holds as PythonHoldRow[]).map((row) => ({
+        ...row,
+        timestamp: toDateValue(row.timestamp)
+      })),
+      bankActions: (pythonParsed.bankActions as PythonHoldRow[]).map((row) => ({
+        ...row,
+        timestamp: toDateValue(row.timestamp)
+      })),
+      smallTransactions: (pythonParsed.smallTransactions as ParsedDataset["smallTransactions"]).map((row) => ({
+        acknowledgementNo: String(row.acknowledgementNo ?? ""),
+        amount: toNumberValue(row.amount),
+        accountNumber: toStringValue(row.accountNumber)
+      })),
+      metadata: {
+        sheets: pythonParsed.metadata.sheets,
+        totalRows: pythonParsed.metadata.totalRows
+      }
+    };
+  }
+
   const workbook = XLSX.readFile(filePath, { cellDates: true });
 
   const parsed: ParsedDataset = {
@@ -343,6 +430,23 @@ export const parseAnalyzerWorkbook = (filePath: string): ParsedDataset => {
     });
     parsed.metadata.totalRows += rows.length;
     const normalizedSheetName = normalizeKey(sheetName);
+    const normalizedColumns = new Set(
+      rows[0] ? Object.keys(normalizeRow(rows[0])) : []
+    );
+
+    if (
+      [
+        "sender_account_number",
+        "receiver_account_number",
+        "transaction_id",
+        "amount",
+        "timestamp",
+        "complaint_id"
+      ].every((column) => normalizedColumns.has(column))
+    ) {
+      parsed.transfers.push(...parseGraphTransferSheet(rows));
+      continue;
+    }
 
     if (normalizedSheetName.includes("monthly_transfer")) {
       const transfers = parseTransferSheet(rows);

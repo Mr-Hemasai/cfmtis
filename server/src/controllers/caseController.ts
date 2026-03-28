@@ -1,10 +1,20 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma/client.js";
 import { AuthenticatedRequest } from "../middleware/auth.js";
 
+const optionalComplaintId = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const normalized = value.trim();
+    return normalized.length === 0 ? undefined : normalized;
+  },
+  z.string().min(5).optional()
+);
+
 const caseSchema = z.object({
-  complaintId: z.string().min(5).optional(),
+  complaintId: optionalComplaintId,
   fraudType: z.string(),
   fraudAmount: z.coerce.number(),
   victimAccount: z.string(),
@@ -48,18 +58,37 @@ export const listCases = async (_req: Request, res: Response) => {
 
 export const createCase = async (req: AuthenticatedRequest, res: Response) => {
   const data = caseSchema.parse(req.body);
-  const complaintId =
-    data.complaintId ??
+  const generateComplaintId = () =>
     `CMP-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}${String(
       new Date().getDate()
     ).padStart(2, "0")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const record = await prisma.case.create({
-    data: {
+  let complaintId = data.complaintId ?? generateComplaintId();
+
+  if (!data.complaintId) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const existing = await prisma.case.findUnique({ where: { complaintId } });
+      if (!existing) break;
+      complaintId = generateComplaintId();
+    }
+  }
+
+
+  // Upsert case by complaintId
+  const record = await prisma.case.upsert({
+    where: { complaintId },
+    update: {
+      ...data,
+      fraudTimestamp: new Date(String(data.fraudTimestamp)),
+      officerId: req.officer!.officerId,
+      updatedAt: new Date()
+    },
+    create: {
       ...data,
       complaintId,
       fraudTimestamp: new Date(String(data.fraudTimestamp)),
-      officerId: req.officer!.officerId
+      officerId: req.officer!.officerId,
+      createdAt: new Date()
     }
   });
 
@@ -82,18 +111,50 @@ export const getCase = async (req: Request, res: Response) => {
   return res.json(record);
 };
 
-export const updateCase = async (req: Request, res: Response) => {
+export const updateCase = async (req: Request, res: Response, next: NextFunction) => {
   const caseId = String(req.params.id);
   const data = caseSchema.partial().parse(req.body);
-  const record = await prisma.case.update({
-    where: { id: caseId },
-    data: {
-      ...data,
-      fraudTimestamp: data.fraudTimestamp ? new Date(String(data.fraudTimestamp)) : undefined
-    }
-  });
 
-  return res.json(record);
+  try {
+    const existing = await prisma.case.findUnique({
+      where: { id: caseId },
+      select: { complaintId: true }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: "Case not found" });
+    }
+
+    const nextComplaintId =
+      typeof data.complaintId === "string" ? data.complaintId.trim() : undefined;
+
+    const shouldUpdateComplaintId =
+      nextComplaintId !== undefined &&
+      nextComplaintId.length > 0 &&
+      nextComplaintId !== existing.complaintId;
+
+    const record = await prisma.case.update({
+      where: { id: caseId },
+      data: {
+        ...data,
+        complaintId: shouldUpdateComplaintId ? nextComplaintId : undefined,
+        fraudTimestamp: data.fraudTimestamp ? new Date(String(data.fraudTimestamp)) : undefined
+      }
+    });
+
+    return res.json(record);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      Array.isArray(error.meta?.target) &&
+      error.meta?.target.includes("complaintId")
+    ) {
+      return res.status(409).json({ message: "Complaint ID already exists" });
+    }
+
+    return next(error);
+  }
 };
 
 export const deleteCase = async (req: Request, res: Response) => {

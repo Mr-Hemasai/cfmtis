@@ -18,7 +18,7 @@ export const CaseRiskTab = () => {
     { label: "Chain Depth (>3)", value: 57, level: "MEDIUM" }
   ];
 
-  if (!analysisDone) {
+  if (!analysisDone && items.length === 0) {
     return <div className="panel-card p-6 font-mono text-dim">Run analysis from the Complaint tab</div>;
   }
 

@@ -1,22 +1,40 @@
 import { prisma } from "../prisma/client.js";
 export const freezeAccount = async (req, res) => {
     const caseId = String(req.params.id);
-    const account = await prisma.tracedAccount.update({
-        where: { id: String(req.params.accountId) },
-        data: {
-            isFrozen: true,
-            accountStatus: "FROZEN"
+    const accountId = String(req.params.accountId);
+    const tracedAccount = (await prisma.tracedAccount.findFirst({
+        where: {
+            caseId,
+            OR: [{ id: accountId }, { accountNumber: accountId }]
         }
-    });
+    })) ?? null;
+    const account = tracedAccount
+        ? await prisma.tracedAccount.update({
+            where: { id: tracedAccount.id },
+            data: {
+                isFrozen: true,
+                accountStatus: "FROZEN"
+            }
+        })
+        : null;
+    const accountNumber = account?.accountNumber ?? accountId;
     await prisma.freezeAction.create({
         data: {
             caseId,
             officerId: req.officer.officerId,
-            accountNumber: account.accountNumber,
-            note: "Single account freeze triggered from case workspace."
+            accountNumber,
+            note: account
+                ? "Single account freeze triggered from case workspace."
+                : "Analyzer graph freeze requested for account not materialized in traced accounts."
         }
     });
-    return res.json(account);
+    return res.json(account ?? {
+        id: accountId,
+        accountNumber,
+        isFrozen: true,
+        accountStatus: "FROZEN",
+        source: "ANALYZER_GRAPH"
+    });
 };
 export const freezeBulk = async (req, res) => {
     const caseId = String(req.params.id);

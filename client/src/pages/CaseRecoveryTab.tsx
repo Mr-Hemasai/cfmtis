@@ -15,17 +15,27 @@ export const CaseRecoveryTab = () => {
     getFreezeLog(caseId).then(setFreezeLog).catch(() => setFreezeLog([]));
   }, [caseId]);
 
-  if (!analysisDone || !recovery.totals) {
+  if (!analysisDone && !recovery.totals) {
     return <div className="panel-card p-6 font-mono text-dim">Run analysis from the Complaint tab</div>;
   }
+
+  const totals = recovery.totals ?? {
+    fraudAmount: 0,
+    recoverable: 0,
+    atRisk: 0,
+    lost: 0,
+    frozen: 0,
+    accountsTraced: 0,
+    recoveryPct: 0
+  };
 
   return (
     <div className="grid gap-6">
       <div className="grid grid-cols-4 gap-4">
-        <KPICard accent="var(--accent-red)" label="Total Fraud" value={formatINR(recovery.totals.fraudAmount)} />
-        <KPICard accent="var(--accent-green)" label="Recoverable (Frozen)" value={formatINR(recovery.totals.recoverable)} />
-        <KPICard accent="var(--accent-orange)" label="At Risk" value={formatINR(recovery.totals.atRisk)} />
-        <KPICard accent="var(--accent-blue)" label="Accounts Traced" value={String(recovery.totals.accountsTraced)} />
+        <KPICard accent="var(--accent-red)" label="Total Fraud" value={formatINR(totals.fraudAmount)} />
+        <KPICard accent="var(--accent-green)" label="Recoverable (Frozen)" value={formatINR(totals.recoverable)} />
+        <KPICard accent="var(--accent-orange)" label="At Risk" value={formatINR(totals.atRisk)} />
+        <KPICard accent="var(--accent-blue)" label="Accounts Traced" value={String(totals.accountsTraced)} />
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -44,7 +54,7 @@ export const CaseRecoveryTab = () => {
           </div>
         </div>
 
-        <RecoveryDonutChart recoverable={recovery.totals.recoverable} atRisk={recovery.totals.atRisk} lost={recovery.totals.lost} />
+        <RecoveryDonutChart recoverable={totals.recoverable} atRisk={totals.atRisk} lost={totals.lost} />
       </div>
 
       <div className="panel-card p-5">

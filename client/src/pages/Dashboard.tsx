@@ -20,7 +20,7 @@ export const DashboardPage = () => {
     total: cases.length,
     active: cases.filter((item) => item.status === "ACTIVE").length,
     frozen: 3,
-    recovered: 23000
+    recovered: 0
   };
 
   return (

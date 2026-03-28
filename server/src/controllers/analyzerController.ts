@@ -4,9 +4,9 @@ import {
   getAnalyzerSummary,
   getBankPerformanceAnalysis,
   getCaseAnalysisById,
-  getRiskAnalysis,
-  ingestAnalyzerDataset
+  getRiskAnalysis
 } from "../services/analyzerEngine.js";
+import { runAnalyzerForUpload } from "../services/analyzerService.js";
 
 export const uploadDataset = async (req: Request, res: Response) => {
   const datasetFile = (req.file as Express.Multer.File | undefined) ?? null;
@@ -21,7 +21,7 @@ export const uploadDataset = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "Officer context missing" });
   }
 
-  const result = await ingestAnalyzerDataset(datasetFile.path, officerId);
+  const result = await runAnalyzerForUpload(datasetFile.path, officerId);
   return res.status(201).json(result);
 };
 

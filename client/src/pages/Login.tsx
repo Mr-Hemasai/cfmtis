@@ -19,8 +19,12 @@ export const LoginPage = () => {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-deep">
       <form onSubmit={handleSubmit} className="panel-card relative z-10 w-full max-w-[440px] p-10">
         <div className="flex items-center gap-4">
-          <div className="grid h-12 w-12 place-items-center rounded-[4px] border border-bright bg-card font-cond text-sm tracking-[0.18em] text-primary">
-            CF
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[12px] border border-bright bg-card shadow-sm">
+            <img
+              src="/anantapur-police-logo.jpg"
+              alt="Ananthapuramu Police logo"
+              className="h-full w-full object-cover"
+            />
           </div>
           <div>
             <div className="font-cond text-3xl uppercase tracking-[0.22em] text-primary">CFMTIS</div>
@@ -28,7 +32,7 @@ export const LoginPage = () => {
           </div>
         </div>
         <div className="mt-5 inline-flex rounded-[3px] border border-border bg-card px-3 py-1 font-mono text-xs text-secondary">
-          Telangana Police | CID Cyber Cell
+          ANANTHAPUR Police |  Cyber Cell
         </div>
         <div className="mt-8 grid gap-4">
           <input className="h-12 rounded-[4px] border border-border bg-card px-4 text-primary" value={badgeNumber} onChange={(e) => setBadgeNumber(e.target.value)} placeholder="Badge Number" />

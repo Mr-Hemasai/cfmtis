@@ -3,23 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --bg-deep: #0c1016;
-  --bg-panel: #131a23;
-  --bg-card: #19222e;
-  --bg-hover: #1d2835;
-  --accent-blue: #4f87b8;
-  --accent-cyan: #72a6b6;
-  --accent-red: #c86464;
-  --accent-orange: #b9825a;
-  --accent-yellow: #b7a069;
-  --accent-green: #6f9b7f;
-  --accent-purple: #8670a6;
-  --border: #253140;
-  --border-bright: #344558;
-  --text-primary: #dce4ee;
-  --text-secondary: #92a2b5;
-  --text-dim: #607286;
-  color-scheme: dark;
+  --bg-deep: #f4f7fb;
+  --bg-panel: #ffffff;
+  --bg-card: #f7f9fc;
+  --bg-hover: #eef3f8;
+  --accent-blue: #3d6f9a;
+  --accent-cyan: #2f7a78;
+  --accent-red: #b85757;
+  --accent-orange: #c07a3c;
+  --accent-yellow: #b88b2f;
+  --accent-green: #4f8a63;
+  --accent-purple: #7a67a8;
+  --border: #d7e0ea;
+  --border-bright: #b9c7d5;
+  --text-primary: #163043;
+  --text-secondary: #5c7287;
+  --text-dim: #8a99a8;
+  color-scheme: light;
 }
 
 * {
@@ -35,7 +35,10 @@ body,
 body {
   margin: 0;
   font-family: "IBM Plex Sans", sans-serif;
-  background: linear-gradient(180deg, #111821 0%, var(--bg-deep) 38%, #0a0e14 100%);
+  background:
+    radial-gradient(circle at top left, rgba(61, 111, 154, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(47, 122, 120, 0.08), transparent 24%),
+    linear-gradient(180deg, #f9fbfd 0%, var(--bg-deep) 38%, #eef3f8 100%);
   color: var(--text-primary);
 }
 
@@ -43,11 +46,11 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: linear-gradient(rgba(52, 69, 88, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(52, 69, 88, 0.12) 1px, transparent 1px);
-  background-size: 56px 56px;
+  background-image: linear-gradient(rgba(135, 157, 179, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(135, 157, 179, 0.09) 1px, transparent 1px);
+  background-size: 48px 48px;
   pointer-events: none;
-  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent);
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
 }
 
 a {
@@ -68,10 +71,10 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-deep);
+  background: #eef3f8;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-bright);
+  background: #c9d4df;
   border-radius: 3px;
 }
