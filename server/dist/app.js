@@ -7,6 +7,7 @@ import caseRoutes from "./routes/cases.js";
 import analysisRoutes from "./routes/analysis.js";
 import freezeRoutes from "./routes/freeze.js";
 import fileRoutes from "./routes/files.js";
+import analyzerRoutes from "./routes/analyzer.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { env } from "./utils/env.js";
 import { logger } from "./utils/logger.js";
@@ -26,6 +27,7 @@ app.use("/api/cases", caseRoutes);
 app.use("/api/cases", analysisRoutes);
 app.use("/api/cases", freezeRoutes);
 app.use("/api/cases", fileRoutes);
+app.use("/api", analyzerRoutes);
 app.use(errorHandler);
 app.listen(env.PORT, () => {
     logger.info(`CFMTIS server listening on port ${env.PORT}`);

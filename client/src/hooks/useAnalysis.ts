@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { getAnalysisStatus } from "../api/analysis";
 import { useCaseStore } from "../store/caseStore";
 
-export const useAnalysis = (caseId?: string, enabled = false, onDone?: () => void) => {
+export const useAnalysis = (
+  caseId?: string,
+  enabled = false,
+  onDone?: (data: { status: string; progress: number; currentStep: string; error?: string }) => void
+) => {
   const setAnalysis = useCaseStore((state) => state.setAnalysis);
 
   useEffect(() => {
@@ -13,7 +17,7 @@ export const useAnalysis = (caseId?: string, enabled = false, onDone?: () => voi
       setAnalysis(data);
       if (data.status === "DONE" || data.status === "FAILED") {
         window.clearInterval(timer);
-        onDone?.();
+        onDone?.(data);
       }
     }, 2000);
 

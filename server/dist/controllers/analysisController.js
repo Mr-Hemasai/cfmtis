@@ -1,4 +1,4 @@
-import { analysisQueue, analysisSteps, processCaseAnalysis } from "../jobs/analysisJob.js";
+import { analysisSteps, getCaseAnalysisProgress, triggerCaseAnalysis } from "../jobs/analysisJob.js";
 import { prisma } from "../prisma/client.js";
 import { calculateRecovery } from "../services/recoveryEngine.js";
 import { getNodeType } from "../services/graphBuilder.js";
@@ -11,14 +11,7 @@ export const analyzeCase = async (req, res) => {
         where: { id: caseId },
         data: { analysisStatus: AnalysisStatus.QUEUED }
     });
-    try {
-        await analysisQueue.add({ caseId });
-    }
-    catch {
-        setTimeout(() => {
-            processCaseAnalysis(caseId).catch(() => undefined);
-        }, 50);
-    }
+    await triggerCaseAnalysis(caseId);
     return res.status(202).json({
         status: AnalysisStatus.QUEUED,
         steps: analysisSteps
@@ -29,6 +22,9 @@ export const getAnalysisStatus = async (req, res) => {
     const record = await prisma.case.findUnique({ where: { id: caseId } });
     if (!record)
         return res.status(404).json({ message: "Case not found" });
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     const progressMap = {
         PENDING: 0,
         QUEUED: 10,
@@ -36,14 +32,17 @@ export const getAnalysisStatus = async (req, res) => {
         DONE: 100,
         FAILED: 100
     };
+    const liveProgress = getCaseAnalysisProgress(caseId);
     return res.json({
-        status: record.analysisStatus,
-        progress: progressMap[String(record.analysisStatus)] ?? 0,
-        currentStep: record.analysisStatus === "DONE"
-            ? analysisSteps[analysisSteps.length - 1]
-            : record.analysisStatus === "RUNNING"
-                ? analysisSteps[4]
-                : analysisSteps[1]
+        status: liveProgress?.status ?? record.analysisStatus,
+        progress: liveProgress?.progress ?? progressMap[String(record.analysisStatus)] ?? 0,
+        currentStep: liveProgress?.currentStep ??
+            (record.analysisStatus === "DONE"
+                ? analysisSteps[analysisSteps.length - 1]
+                : record.analysisStatus === "RUNNING"
+                    ? analysisSteps[4]
+                    : analysisSteps[1]),
+        error: liveProgress?.error
     });
 };
 export const getGraph = async (req, res) => {

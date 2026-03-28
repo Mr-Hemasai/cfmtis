@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input, Select, Textarea } from "../ui/Input";
 import { SectionHeader } from "../layout/SectionHeader";
 
@@ -13,6 +13,25 @@ const fraudTypes = [
   "Online Marketplace Scam"
 ];
 
+const toDateTimeLocalValue = (value?: string | number) => {
+  if (!value) {
+    return new Date().toISOString().slice(0, 16);
+  }
+
+  const stringValue = String(value);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(stringValue)) {
+    return stringValue;
+  }
+
+  const date = new Date(stringValue);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 16);
+  }
+
+  const localOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - localOffset).toISOString().slice(0, 16);
+};
+
 export const ComplaintForm = ({
   initialValues,
   onSubmit
@@ -20,18 +39,34 @@ export const ComplaintForm = ({
   initialValues?: Record<string, string | number>;
   onSubmit: (values: Record<string, string>) => void;
 }) => {
-  const [form, setForm] = useState<Record<string, string>>({
+  const buildFormState = (): Record<string, string> => ({
     complaintId: String(initialValues?.complaintId ?? ""),
     fraudType: String(initialValues?.fraudType ?? "OTP Fraud"),
     fraudAmount: String(initialValues?.fraudAmount ?? ""),
     victimAccount: String(initialValues?.victimAccount ?? ""),
     victimName: String(initialValues?.victimName ?? ""),
-    fraudTimestamp: String(initialValues?.fraudTimestamp ?? new Date().toISOString().slice(0, 16)),
+    fraudTimestamp: toDateTimeLocalValue(initialValues?.fraudTimestamp),
     victimMobile: String(initialValues?.victimMobile ?? ""),
     bankName: String(initialValues?.bankName ?? ""),
     referenceId: String(initialValues?.referenceId ?? ""),
     description: String(initialValues?.description ?? "")
   });
+  const [form, setForm] = useState<Record<string, string>>(buildFormState);
+
+  useEffect(() => {
+    setForm(buildFormState());
+  }, [
+    initialValues?.bankName,
+    initialValues?.complaintId,
+    initialValues?.description,
+    initialValues?.fraudAmount,
+    initialValues?.fraudTimestamp,
+    initialValues?.fraudType,
+    initialValues?.referenceId,
+    initialValues?.victimAccount,
+    initialValues?.victimMobile,
+    initialValues?.victimName
+  ]);
 
   return (
     <section className="panel-card p-6">

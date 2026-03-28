@@ -11,7 +11,7 @@ type CaseState = {
     log: Array<{ timestamp: string; level: string; message: string }>;
   };
   patternAlerts: PatternAlert[];
-  analysis: { status: string; progress: number; currentStep: string; steps: string[] };
+  analysis: { status: string; progress: number; currentStep: string; steps: string[]; error?: string };
   uploadedFiles: Array<Record<string, unknown>>;
   frozenAccounts: Set<string>;
   setCases: (cases: CaseSummary[]) => void;
@@ -30,7 +30,7 @@ export const useCaseStore = create<CaseState>((set) => ({
   riskData: [],
   recoveryData: { totals: null, accounts: [], log: [] },
   patternAlerts: [],
-  analysis: { status: "PENDING", progress: 0, currentStep: "", steps: [] },
+  analysis: { status: "PENDING", progress: 0, currentStep: "", steps: [], error: undefined },
   uploadedFiles: [],
   frozenAccounts: new Set(),
   setCases: (cases) => set({ cases }),

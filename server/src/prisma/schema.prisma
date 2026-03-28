@@ -81,6 +81,10 @@ model Case {
   files          UploadedFile[]
   accounts       TracedAccount[]
   transactions   Transaction[]
+  withdrawals    Withdrawal[]
+  holds          HoldAction[]
+  bankActions    BankAction[]
+  analysis       CaseAnalysis?
   patternAlerts  PatternAlert[]
   freezeActions  FreezeAction[]
   createdAt      DateTime        @default(now())
@@ -89,6 +93,7 @@ model Case {
 
 model Transaction {
   id              String   @id @default(cuid())
+  acknowledgementNo String?
   txnId           String
   senderAccount   String
   receiverAccount String
@@ -97,6 +102,12 @@ model Transaction {
   txnType         String
   status          String
   referenceId     String?
+  sourceSheet     String?
+  layerLevel      Int?
+  senderBankName  String?
+  receiverBankName String?
+  senderIfsc      String?
+  receiverIfsc    String?
   case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId          String
 }
@@ -149,4 +160,84 @@ model UploadedFile {
   storageKey String?
   caseId    String
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Withdrawal {
+  id                String   @id @default(cuid())
+  acknowledgementNo String
+  withdrawalType    String
+  amount            Float
+  timestamp         DateTime?
+  accountNumber     String?
+  location          String?
+  atmTerminalId     String?
+  deviceId          String?
+  referenceId       String?
+  sourceSheet       String
+  highRiskFlag      Boolean  @default(false)
+  bankId            String?
+  bank              Bank?    @relation(fields: [bankId], references: [id])
+  caseId            String
+  case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model HoldAction {
+  id                String   @id @default(cuid())
+  acknowledgementNo String
+  actionType        String
+  amount            Float?
+  timestamp         DateTime?
+  status            String?
+  remarks           String?
+  sourceSheet       String
+  bankId            String?
+  bank              Bank?    @relation(fields: [bankId], references: [id])
+  caseId            String
+  case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model BankAction {
+  id                String   @id @default(cuid())
+  acknowledgementNo String
+  actionType        String
+  status            String?
+  responseTimeHours Float?
+  timestamp         DateTime?
+  remarks           String?
+  sourceSheet       String
+  bankId            String?
+  bank              Bank?    @relation(fields: [bankId], references: [id])
+  caseId            String
+  case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Bank {
+  id          String        @id @default(cuid())
+  name        String
+  ifsc        String?
+  withdrawals Withdrawal[]
+  holds       HoldAction[]
+  actions     BankAction[]
+  createdAt   DateTime      @default(now())
+
+  @@unique([name, ifsc])
+}
+
+model CaseAnalysis {
+  id                    String   @id @default(cuid())
+  acknowledgementNo     String   @unique
+  totalAmount           Float
+  layers                Json
+  banksInvolved         Json
+  moneyTrail            Json
+  timeline              Json
+  withdrawalIntelligence Json
+  recovery              Json
+  risk                  Json
+  patternInsights       Json
+  bankInsights          Json
+  caseId                String   @unique
+  case                  Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }

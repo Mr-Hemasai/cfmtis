@@ -34,6 +34,10 @@ export const DashboardPage = () => {
           <Button variant="primary">New Case</Button>
         </Link>
       </div>
+      <div className="mb-6 flex gap-3">
+        <Link to="/analyzer/summary" className="text-sm text-blue">Open Analyzer Dashboard</Link>
+        <Link to="/analyzer/banks" className="text-sm text-blue">Bank Performance</Link>
+      </div>
 
       <div className="grid grid-cols-4 gap-4">
         <KPICard accent="var(--accent-blue)" label="Total Cases This Month" value={String(stats.total)} />

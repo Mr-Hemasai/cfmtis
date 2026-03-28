@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import * as XLSX from "xlsx";
+import * as XLSXModule from "xlsx";
 import pdf from "pdf-parse";
+import { parseAnalyzerWorkbook } from "./analyzerWorkbookService.js";
+const XLSX = XLSXModule.default ?? XLSXModule;
 const normalizeRow = (row, index) => ({
     txn_id: String(row.txn_id ?? row.txnId ?? row.id ?? `TXN-${index + 1}`),
     sender_account: String(row.sender_account ?? row.senderAccount ?? row.sender ?? ""),
@@ -30,7 +32,27 @@ const parseJsonFile = async (filePath) => {
 const parseXlsxFile = async (filePath) => {
     const workbook = XLSX.readFile(filePath);
     const rows = workbook.SheetNames.flatMap((sheetName) => XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]));
-    return rows.map(normalizeRow);
+    const normalized = rows.map(normalizeRow);
+    const hasStructuredTransactions = normalized.some((row) => String(row.sender_account).trim() &&
+        String(row.receiver_account).trim() &&
+        Number(row.amount) > 0);
+    if (hasStructuredTransactions) {
+        return normalized;
+    }
+    const parsedDataset = parseAnalyzerWorkbook(filePath);
+    if (parsedDataset.transfers.length > 0) {
+        return parsedDataset.transfers.map((transfer) => ({
+            txn_id: transfer.txnId,
+            sender_account: transfer.senderAccount,
+            receiver_account: transfer.receiverAccount,
+            amount: transfer.amount,
+            timestamp: transfer.timestamp ?? new Date(),
+            type: transfer.txnType ?? "TRANSFER",
+            status: transfer.status ?? "SUCCESS",
+            reference_id: transfer.referenceId
+        }));
+    }
+    return normalized;
 };
 const parsePdfFile = async (filePath) => {
     const buffer = await fs.readFile(filePath);
