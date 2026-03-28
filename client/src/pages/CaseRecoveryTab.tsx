@@ -1,0 +1,88 @@
+import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { getFreezeLog } from "../api/freeze";
+import { RecoveryDonutChart } from "../components/recovery/DonutChart";
+import { KPICard } from "../components/recovery/KPICard";
+import { useCaseStore } from "../store/caseStore";
+import { formatINR } from "../utils/format";
+
+export const CaseRecoveryTab = () => {
+  const { analysisDone, caseId } = useOutletContext<{ analysisDone: boolean; caseId: string }>();
+  const recovery = useCaseStore((state) => state.recoveryData);
+  const [freezeLog, setFreezeLog] = useState<Array<{ id: string; accountNumber: string; timestamp: string; officer: { name: string } }>>([]);
+
+  useEffect(() => {
+    getFreezeLog(caseId).then(setFreezeLog).catch(() => setFreezeLog([]));
+  }, [caseId]);
+
+  if (!analysisDone || !recovery.totals) {
+    return <div className="panel-card p-6 font-mono text-dim">Run analysis from the Complaint tab</div>;
+  }
+
+  return (
+    <div className="grid gap-6">
+      <div className="grid grid-cols-4 gap-4">
+        <KPICard accent="var(--accent-red)" label="Total Fraud" value={formatINR(recovery.totals.fraudAmount)} />
+        <KPICard accent="var(--accent-green)" label="Recoverable (Frozen)" value={formatINR(recovery.totals.recoverable)} />
+        <KPICard accent="var(--accent-orange)" label="At Risk" value={formatINR(recovery.totals.atRisk)} />
+        <KPICard accent="var(--accent-blue)" label="Accounts Traced" value={String(recovery.totals.accountsTraced)} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div className="panel-card max-h-[320px] overflow-auto p-5">
+          <div className="section-header">Account-wise Distribution</div>
+          <div className="mt-4 space-y-3">
+            {recovery.accounts.map((account) => (
+              <div key={account.accountNumber} className="flex items-center justify-between rounded-[4px] border border-border bg-card px-4 py-3">
+                <div>
+                  <div className="font-mono text-primary">{account.accountNumber}</div>
+                  <div className="text-sm text-secondary">{formatINR(account.balance)}</div>
+                </div>
+                <span className="font-mono text-xs text-cyan">{account.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <RecoveryDonutChart recoverable={recovery.totals.recoverable} atRisk={recovery.totals.atRisk} lost={recovery.totals.lost} />
+      </div>
+
+      <div className="panel-card p-5">
+        <div className="section-header">System Analysis Log</div>
+        <div className="mt-4 max-h-[260px] overflow-auto rounded-[4px] border border-border bg-[#09111c] p-4 font-mono text-xs">
+          <div className="grid grid-cols-[220px_100px_1fr] gap-3 border-b border-border pb-2 text-dim">
+            <span>[timestamp]</span>
+            <span>[LEVEL]</span>
+            <span>message</span>
+          </div>
+          {recovery.log.map((item, index) => (
+            <div key={`${item.timestamp}-${index}`} className="grid grid-cols-[220px_100px_1fr] gap-3 border-b border-border/50 py-3">
+              <span className="text-secondary">{new Date(item.timestamp).toLocaleString("en-IN")}</span>
+              <span className={item.level === "ALERT" ? "text-red" : item.level === "WARN" ? "text-yellow" : "text-cyan"}>{item.level}</span>
+              <span className="text-primary">{item.message}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel-card p-5">
+        <div className="section-header">Freeze Audit Log</div>
+        <div className="mt-4 grid gap-3">
+          {freezeLog.length === 0 ? (
+            <div className="font-mono text-sm text-dim">No freeze actions recorded yet.</div>
+          ) : (
+            freezeLog.map((item) => (
+              <div key={item.id} className="flex items-center justify-between rounded-[4px] border border-border bg-card px-4 py-3">
+                <div>
+                  <div className="font-mono text-primary">{item.accountNumber}</div>
+                  <div className="text-sm text-secondary">{item.officer.name}</div>
+                </div>
+                <div className="font-mono text-xs text-cyan">{new Date(item.timestamp).toLocaleString("en-IN")}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

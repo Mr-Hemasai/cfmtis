@@ -1,0 +1,54 @@
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: "IBM Plex Sans Condensed", sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+}
+
+.section-header::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  background: var(--accent-cyan);
+}
+
+.panel-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(25, 34, 46, 0.98), rgba(16, 22, 30, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.015);
+}
+
+.risk-bar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(61, 90, 122, 0.18);
+}
+
+.risk-bar > span {
+  display: block;
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.count-up {
+  animation: pulse-number 1.4s ease;
+}
+
+@keyframes pulse-number {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

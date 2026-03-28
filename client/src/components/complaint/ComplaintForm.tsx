@@ -1,0 +1,64 @@
+import { useState } from "react";
+import { Input, Select, Textarea } from "../ui/Input";
+import { SectionHeader } from "../layout/SectionHeader";
+
+const fraudTypes = [
+  "OTP Fraud",
+  "Phishing",
+  "SIM Swap",
+  "UPI Scam",
+  "Investment Fraud",
+  "Impersonation",
+  "Vishing",
+  "Online Marketplace Scam"
+];
+
+export const ComplaintForm = ({
+  initialValues,
+  onSubmit
+}: {
+  initialValues?: Record<string, string | number>;
+  onSubmit: (values: Record<string, string>) => void;
+}) => {
+  const [form, setForm] = useState<Record<string, string>>({
+    complaintId: String(initialValues?.complaintId ?? ""),
+    fraudType: String(initialValues?.fraudType ?? "OTP Fraud"),
+    fraudAmount: String(initialValues?.fraudAmount ?? ""),
+    victimAccount: String(initialValues?.victimAccount ?? ""),
+    victimName: String(initialValues?.victimName ?? ""),
+    fraudTimestamp: String(initialValues?.fraudTimestamp ?? new Date().toISOString().slice(0, 16)),
+    victimMobile: String(initialValues?.victimMobile ?? ""),
+    bankName: String(initialValues?.bankName ?? ""),
+    referenceId: String(initialValues?.referenceId ?? ""),
+    description: String(initialValues?.description ?? "")
+  });
+
+  return (
+    <section className="panel-card p-6">
+      <SectionHeader label="Complaint Registration" />
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        <Input value={form.complaintId} placeholder="Complaint ID" onChange={(e) => setForm({ ...form, complaintId: e.target.value })} />
+        <Select value={form.fraudType} onChange={(e) => setForm({ ...form, fraudType: e.target.value })}>
+          {fraudTypes.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
+        </Select>
+        <Input value={form.fraudAmount} placeholder="Fraud Amount ₹" onChange={(e) => setForm({ ...form, fraudAmount: e.target.value })} />
+        <Input value={form.victimAccount} placeholder="Victim Account No." onChange={(e) => setForm({ ...form, victimAccount: e.target.value })} />
+        <Input value={form.victimName} placeholder="Victim Name" onChange={(e) => setForm({ ...form, victimName: e.target.value })} />
+        <Input type="datetime-local" value={form.fraudTimestamp} onChange={(e) => setForm({ ...form, fraudTimestamp: e.target.value })} />
+        <Input value={form.victimMobile} placeholder="Victim Mobile" onChange={(e) => setForm({ ...form, victimMobile: e.target.value })} />
+        <Input value={form.bankName} placeholder="Bank Name" onChange={(e) => setForm({ ...form, bankName: e.target.value })} />
+        <Input value={form.referenceId} placeholder="Reference ID/UTR" onChange={(e) => setForm({ ...form, referenceId: e.target.value })} />
+        <div className="col-span-3">
+          <Textarea value={form.description} placeholder="Incident Description" onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button className="rounded-[3px] border border-cyan/50 px-4 py-2 font-cond uppercase tracking-[0.2em] text-cyan" onClick={() => onSubmit(form)}>
+          Save Complaint
+        </button>
+      </div>
+    </section>
+  );
+};

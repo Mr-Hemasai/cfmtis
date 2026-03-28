@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OFFICER
+  VIEWER
+}
+
+enum CaseStatus {
+  ACTIVE
+  PENDING
+  CLOSED
+  ARCHIVED
+}
+
+enum AnalysisStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum RiskLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AlertType {
+  FRAGMENTATION
+  VELOCITY
+  LOCATION
+  NEW_ACCOUNT
+  CASH_OUT
+}
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model Officer {
+  id            String         @id @default(cuid())
+  badgeNumber   String         @unique
+  name          String
+  rank          String
+  department    String
+  passwordHash  String
+  role          Role           @default(OFFICER)
+  cases         Case[]
+  freezeActions FreezeAction[]
+  createdAt     DateTime       @default(now())
+}
+
+model Case {
+  id             String          @id @default(cuid())
+  complaintId    String          @unique
+  fraudType      String
+  fraudAmount    Float
+  victimAccount  String
+  victimName     String
+  victimMobile   String
+  bankName       String
+  fraudTimestamp DateTime
+  description    String
+  status         CaseStatus      @default(ACTIVE)
+  analysisStatus AnalysisStatus  @default(PENDING)
+  officer        Officer         @relation(fields: [officerId], references: [id])
+  officerId      String
+  files          UploadedFile[]
+  accounts       TracedAccount[]
+  transactions   Transaction[]
+  patternAlerts  PatternAlert[]
+  freezeActions  FreezeAction[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  txnId           String
+  senderAccount   String
+  receiverAccount String
+  amount          Float
+  timestamp       DateTime
+  txnType         String
+  status          String
+  referenceId     String?
+  case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId          String
+}
+
+model TracedAccount {
+  id                  String    @id @default(cuid())
+  accountNumber       String
+  holderName          String
+  bankName            String
+  currentBalance      Float
+  amountReceived      Float
+  chainDepth          Int
+  riskScore           Float
+  riskLevel           RiskLevel
+  accountStatus       String
+  isFrozen            Boolean   @default(false)
+  createdDaysAgo      Int?
+  location            String?
+  transactionVelocity Int?
+  fragmentationScore  Float?
+  case                Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId              String
+}
+
+model FreezeAction {
+  id            String   @id @default(cuid())
+  accountNumber String
+  officerId     String
+  officer       Officer  @relation(fields: [officerId], references: [id])
+  caseId        String
+  case          Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  timestamp     DateTime @default(now())
+  note          String?
+}
+
+model PatternAlert {
+  id       String        @id @default(cuid())
+  type     AlertType
+  severity AlertSeverity
+  message  String
+  caseId   String
+  case     Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model UploadedFile {
+  id        String   @id @default(cuid())
+  filename  String
+  fileType  String
+  sizeMb    Float
+  storageKey String?
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
