@@ -36,3 +36,23 @@ export const getFiles = async (caseId: string) => {
   const { data } = await api.get(`/cases/${caseId}/files`);
   return data;
 };
+
+export const getSampleDatasets = async () => {
+  const { data } = await api.get("/cases/samples");
+  return data as { items: Array<{ id: string; filename: string }> };
+};
+
+export const downloadSampleDataset = async (fileName: string) => {
+  const response = await api.get(`/cases/samples/${encodeURIComponent(fileName)}`, {
+    responseType: "blob"
+  });
+
+  const url = window.URL.createObjectURL(response.data);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+};

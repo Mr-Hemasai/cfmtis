@@ -1,4 +1,5 @@
 import { prisma } from "../prisma/client.js";
+import { materializeStoredFile } from "../services/fileStorageService.js";
 import { parseEvidenceFile } from "../services/parserService.js";
 import { runAnalyzerForCase } from "../services/analyzerService.js";
 import { detectPatterns } from "../services/patternDetector.js";
@@ -80,7 +81,18 @@ export const processCaseAnalysis = async (caseId: string) => {
   try {
     const caseRecord = await prisma.case.findUnique({
       where: { id: caseId },
-      include: { files: true }
+      include: {
+        files: {
+          select: {
+            id: true,
+            filename: true,
+            fileType: true,
+            sizeMb: true,
+            storageKey: true,
+            caseId: true
+          }
+        }
+      }
     });
 
     if (!caseRecord) {
@@ -89,21 +101,26 @@ export const processCaseAnalysis = async (caseId: string) => {
 
     const analyzerWorkbook = caseRecord.files.find(
       (file: any) =>
-        typeof file.storageKey === "string" &&
-        /\.xlsx?$/i.test(file.storageKey)
+        /\.xlsx?$/i.test(String(file.filename ?? file.storageKey ?? ""))
     );
 
-    if (analyzerWorkbook?.storageKey) {
+    if (analyzerWorkbook) {
       setProgress(caseId, AnalysisStatus.RUNNING, 1);
-      await runAnalyzerForCase(analyzerWorkbook.storageKey, {
-        id: caseRecord.id,
-        complaintId: caseRecord.complaintId,
-        fraudAmount: caseRecord.fraudAmount,
-        victimAccount: caseRecord.victimAccount,
-        victimName: caseRecord.victimName,
-        victimMobile: caseRecord.victimMobile,
-        bankName: caseRecord.bankName
-      });
+      const workbookFile = await materializeStoredFile(analyzerWorkbook);
+
+      try {
+        await runAnalyzerForCase(workbookFile.path, {
+          id: caseRecord.id,
+          complaintId: caseRecord.complaintId,
+          fraudAmount: caseRecord.fraudAmount,
+          victimAccount: caseRecord.victimAccount,
+          victimName: caseRecord.victimName,
+          victimMobile: caseRecord.victimMobile,
+          bankName: caseRecord.bankName
+        });
+      } finally {
+        await workbookFile.cleanup();
+      }
 
       await prisma.case.update({
         where: { id: caseId },
@@ -114,11 +131,21 @@ export const processCaseAnalysis = async (caseId: string) => {
     }
 
     setProgress(caseId, AnalysisStatus.RUNNING, 1);
-    const parsedFiles = await Promise.all(
-      caseRecord.files
-        .filter((file: any) => file.storageKey)
-        .map((file: any) => parseEvidenceFile(file.storageKey!))
+    const materializedFiles = await Promise.all(
+      caseRecord.files.map(async (file: any) => ({
+        file,
+        temp: await materializeStoredFile(file)
+      }))
     );
+
+    let parsedFiles: Awaited<ReturnType<typeof parseEvidenceFile>>[] = [];
+    try {
+      parsedFiles = await Promise.all(
+        materializedFiles.map(({ temp }) => parseEvidenceFile(temp.path))
+      );
+    } finally {
+      await Promise.all(materializedFiles.map(({ temp }) => temp.cleanup()));
+    }
 
     const transactions = parsedFiles.flat();
     if (transactions.length === 0) {

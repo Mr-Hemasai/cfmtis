@@ -1,4 +1,7 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "../prisma/client.js";
+import { env } from "../utils/env.js";
 export const uploadFiles = async (req, res) => {
     const caseId = String(req.params.id);
     const files = req.files ?? [];
@@ -11,7 +14,8 @@ export const uploadFiles = async (req, res) => {
             filename: file.originalname,
             fileType: file.mimetype,
             sizeMb: Number((file.size / 1024 / 1024).toFixed(2)),
-            storageKey: file.path
+            storageKey: null,
+            content: Uint8Array.from(file.buffer)
         }
     })));
     return res.status(201).json(created);
@@ -20,7 +24,32 @@ export const listFiles = async (req, res) => {
     const caseId = String(req.params.id);
     const files = await prisma.uploadedFile.findMany({
         where: { caseId },
-        orderBy: { filename: "asc" }
+        orderBy: { filename: "asc" },
+        select: {
+            id: true,
+            filename: true,
+            fileType: true,
+            sizeMb: true,
+            storageKey: true,
+            caseId: true
+        }
     });
     return res.json(files);
+};
+export const listSampleDatasets = async (_req, res) => {
+    const uploadDir = path.resolve(env.UPLOAD_DIR);
+    const entries = await fs.readdir(uploadDir, { withFileTypes: true }).catch(() => []);
+    const items = entries
+        .filter((entry) => entry.isFile() && /\.(xlsx?|csv|json|pdf)$/i.test(entry.name))
+        .map((entry) => ({
+        id: entry.name,
+        filename: entry.name
+    }))
+        .sort((left, right) => left.filename.localeCompare(right.filename));
+    return res.json({ items });
+};
+export const downloadSampleDataset = async (req, res) => {
+    const fileName = path.basename(String(req.params.fileName ?? ""));
+    const filePath = path.resolve(env.UPLOAD_DIR, fileName);
+    return res.download(filePath, fileName);
 };

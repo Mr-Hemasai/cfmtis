@@ -49,13 +49,19 @@ export const CaseRiskTab = () => {
           <div className="section-header">Freeze Summary</div>
           <div className="mt-4 grid gap-2 font-mono text-sm text-secondary">
             <div className="flex justify-between"><span>Accounts Analyzed</span><span>{items.length}</span></div>
-            <div className="flex justify-between"><span>Recommended Freeze</span><span>{criticalCount}</span></div>
-            <div className="flex justify-between"><span>Under Review</span><span>{items.filter((item) => item.riskLevel === "HIGH").length}</span></div>
+            <div className="flex items-center justify-between">
+              <span>Recommended Freeze</span>
+              <span className="rounded-[4px] px-2 py-1 text-[11px] text-white" style={{ background: "var(--accent-red)" }}>{criticalCount}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Under Review</span>
+              <span className="rounded-[4px] px-2 py-1 text-[11px] text-white" style={{ background: "var(--accent-yellow)" }}>{items.filter((item) => item.riskLevel === "HIGH").length}</span>
+            </div>
             <div className="flex justify-between"><span>Frozen</span><span>{frozenCount}</span></div>
             <div className="my-1 border-t border-border" />
             <div className="flex justify-between text-primary"><span>Amount Secured</span><span>{formatINR(recoveryTotals?.frozen ?? 0)}</span></div>
           </div>
-          <Button variant="danger" fullWidth className="mt-4" onClick={freezeCritical}>
+          <Button variant="danger" fullWidth className="mt-4 text-white" style={{ background: "var(--accent-red)", borderColor: "var(--accent-red)" }} onClick={freezeCritical}>
             Freeze All Critical Accounts
           </Button>
         </div>

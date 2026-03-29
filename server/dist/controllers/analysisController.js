@@ -328,7 +328,18 @@ export const analyzeCase = async (req, res) => {
     const caseId = String(req.params.id);
     const caseRecord = await prisma.case.findUnique({
         where: { id: caseId },
-        include: { files: true }
+        include: {
+            files: {
+                select: {
+                    id: true,
+                    filename: true,
+                    fileType: true,
+                    sizeMb: true,
+                    storageKey: true,
+                    caseId: true
+                }
+            }
+        }
     });
     if (!caseRecord) {
         return res.status(404).json({ message: "Case not found" });

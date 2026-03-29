@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { downloadSampleDataset, getSampleDatasets } from "../api/analysis";
 import { getCases } from "../api/cases";
 import { PageShell } from "../components/layout/PageShell";
 import { KPICard } from "../components/recovery/KPICard";
@@ -11,17 +12,30 @@ import { formatINR } from "../utils/format";
 export const DashboardPage = () => {
   const cases = useCaseStore((state) => state.cases);
   const setCases = useCaseStore((state) => state.setCases);
+  const [sampleDatasets, setSampleDatasets] = useState<Array<{ id: string; filename: string }>>([]);
+  const [selectedDataset, setSelectedDataset] = useState("");
 
   useEffect(() => {
     getCases().then((data) => setCases(data.items));
   }, [setCases]);
 
-  const stats = {
+  useEffect(() => {
+    getSampleDatasets()
+      .then((data) => {
+        setSampleDatasets(data.items);
+        setSelectedDataset(data.items[0]?.filename ?? "");
+      })
+      .catch(() => {
+        setSampleDatasets([]);
+        setSelectedDataset("");
+      });
+  }, []);
+
+  const stats = useMemo(() => ({
     total: cases.length,
     active: cases.filter((item) => item.status === "ACTIVE").length,
-    frozen: 3,
-    recovered: 0
-  };
+    totalFraudAmount: cases.reduce((sum, item) => sum + Number(item.fraudAmount || 0), 0)
+  }), [cases]);
 
   return (
     <PageShell>
@@ -34,21 +48,40 @@ export const DashboardPage = () => {
           <Button variant="primary">New Case</Button>
         </Link>
       </div>
-      <div className="mb-6 flex gap-3">
-        <Link to="/analyzer/summary" className="text-sm text-blue">Open Analyzer Dashboard</Link>
-        <Link to="/analyzer/banks" className="text-sm text-blue">Bank Performance</Link>
-      </div>
+    
 
       <div className="grid grid-cols-4 gap-4">
-        <KPICard accent="var(--accent-blue)" label="Total Cases This Month" value={String(stats.total)} />
-        <KPICard accent="var(--accent-cyan)" label="Active Investigations" value={String(stats.active)} />
-        <KPICard accent="var(--accent-orange)" label="Accounts Frozen Today" value={String(stats.frozen)} />
-        <KPICard accent="var(--accent-green)" label="Money Recovered" value={formatINR(stats.recovered)} />
+        <KPICard accent="var(--accent-red)" label="Total Cases This Month" value={String(stats.total)} />
+        <KPICard accent="var(--accent-yellow)" label="Active Investigations" value={String(stats.active)} />
+        <KPICard accent="var(--accent-blue)" label="Total Fraud Amount" value={formatINR(stats.totalFraudAmount)} />
+        <KPICard accent="var(--accent-green)" label="Sample Datasets" value={String(sampleDatasets.length)}>
+          <div className="mt-4 grid gap-2">
+            <select
+              className="h-10 rounded-[6px] border border-border bg-card px-3 text-sm text-primary outline-none transition focus:border-cyan"
+              value={selectedDataset}
+              onChange={(event) => setSelectedDataset(event.target.value)}
+            >
+              <option value="">Select dataset</option>
+              {sampleDatasets.map((dataset) => (
+                <option key={dataset.id} value={dataset.filename}>
+                  {dataset.filename}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="primary"
+              onClick={() => selectedDataset && void downloadSampleDataset(selectedDataset)}
+              disabled={!selectedDataset}
+            >
+              Download Sample
+            </Button>
+          </div>
+        </KPICard>
       </div>
 
       <div className="panel-card mt-6 overflow-hidden">
         <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-panel text-xs uppercase tracking-[0.2em] text-secondary">
+          <thead className="bg-panel text-xs tracking-[0.08em] text-secondary">
             <tr>
               {["Case ID", "Victim", "Fraud Amount", "Type", "Status", "Risk Level", "Date", "Action"].map((item) => (
                 <th key={item} className="px-4 py-3">{item}</th>

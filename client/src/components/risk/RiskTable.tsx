@@ -3,6 +3,13 @@ import { formatINR, riskColor } from "../../utils/format";
 import { RiskPill } from "../ui/Badge";
 import { Button } from "../ui/Button";
 
+const scoreColor = (score: number) => {
+  if (score >= 85) return "var(--accent-red)";
+  if (score >= 70) return "var(--accent-orange)";
+  if (score >= 40) return "var(--accent-yellow)";
+  return "var(--accent-green)";
+};
+
 export const RiskTable = ({
   items,
   onFreeze
@@ -13,7 +20,7 @@ export const RiskTable = ({
   <div className="panel-card overflow-hidden">
     <div className="overflow-x-auto">
       <table className="min-w-[1080px] border-collapse text-left text-sm">
-        <thead className="bg-panel text-xs uppercase tracking-[0.2em] text-secondary">
+        <thead className="bg-panel text-xs tracking-[0.08em] text-secondary">
           <tr>
             <th className="px-4 py-3">#</th>
             <th className="px-4 py-3">Account No.</th>
@@ -38,7 +45,7 @@ export const RiskTable = ({
                 <div className="flex items-center gap-3">
                   <span className="w-10 font-mono">{Math.round(item.riskScore)}</span>
                   <div className="risk-bar h-2 w-32">
-                    <span style={{ width: `${item.riskScore}%`, background: riskColor(item.riskLevel) }} />
+                    <span style={{ width: `${item.riskScore}%`, background: scoreColor(item.riskScore) }} />
                   </div>
                 </div>
               </td>

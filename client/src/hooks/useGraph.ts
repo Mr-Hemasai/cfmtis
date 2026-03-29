@@ -11,24 +11,27 @@ type UseGraphOptions = {
 
 const nodeColor = (node: GraphNode) => {
   if (node.nodeType === "Victim") return "#58b7e8";
-  if (node.nodeType === "Frozen") return "#8b99a7";
-  if (node.nodeType === "Recovered") return "#5d916f";
-  if (node.nodeType === "Mule") return "#8e79bc";
+  if (node.isFrozen || node.nodeType === "Frozen") return "#8b99a7";
   if (node.riskLevel === "CRITICAL") return "#cf4b4b";
-  if (node.riskLevel === "HIGH") return "#db6a4d";
+  if (node.riskLevel === "HIGH") return "#db8d4d";
   if (node.riskLevel === "MEDIUM") return "#d0a84b";
   return "#76a77f";
 };
 
 const nodeRadius = (type: GraphNode["nodeType"]) => {
-  if (type === "Victim") return 26;
+  if (type === "Victim") return 30;
   if (type === "Mule") return 18;
   if (type === "Suspect") return 20;
   return 14;
 };
 
+const nodeVisualRadius = (node: GraphNode) => {
+  const baseRadius = nodeRadius(node.nodeType);
+  return node.nodeType === "Victim" ? Math.max(baseRadius, 38) : baseRadius;
+};
+
 const compactAccountLabel = (accountNumber: string) =>
-  accountNumber.length > 14 ? `${accountNumber.slice(0, 6)}...${accountNumber.slice(-4)}` : accountNumber;
+  accountNumber.length > 6 ? `...${accountNumber.slice(-6)}` : accountNumber;
 
 export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphOptions) => {
   const ref = useRef<SVGSVGElement | null>(null);
@@ -49,13 +52,14 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
       .append("marker")
       .attr("id", "arrow")
       .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 18)
+      .attr("refX", 8)
       .attr("refY", 0)
+      .attr("markerUnits", "userSpaceOnUse")
       .attr("markerWidth", 6)
       .attr("markerHeight", 6)
       .attr("orient", "auto")
       .append("path")
-      .attr("fill", "#d7a72b")
+      .attr("fill", "#d09f24")
       .attr("d", "M0,-5L10,0L0,5");
 
     const viewport = svg.append("g");
@@ -105,8 +109,8 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
       .attr("ry", 18)
       .attr("width", laneWidth)
       .attr("height", layoutHeight - 44)
-      .attr("fill", (depth) => (depth === 0 ? "rgba(61,111,154,0.08)" : "rgba(22,48,67,0.035)"))
-      .attr("stroke", (depth) => (depth === 0 ? "rgba(61,111,154,0.2)" : "rgba(22,48,67,0.08)"))
+      .attr("fill", (depth) => (depth === 0 ? "rgba(61,111,154,0.11)" : `rgba(22,48,67,${0.05 + depth * 0.015})`))
+      .attr("stroke", (depth) => (depth === 0 ? "rgba(61,111,154,0.28)" : "rgba(22,48,67,0.14)"))
       .attr("stroke-width", 1);
 
     lane
@@ -147,12 +151,23 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
     const edgeLine = (edge: (typeof layoutEdges)[number]) => {
       const source = edge.sourceNode!;
       const target = edge.targetNode!;
-      const controlOffset = Math.max((target.x - source.x) * 0.42, 44);
-      return `M ${source.x} ${source.y} C ${source.x + controlOffset} ${source.y}, ${target.x - controlOffset} ${target.y}, ${target.x} ${target.y}`;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.max(Math.hypot(dx, dy), 1);
+      const ux = dx / distance;
+      const uy = dy / distance;
+      const sourceOffset = nodeVisualRadius(source) + 4;
+      const targetOffset = nodeVisualRadius(target) + 14;
+      const startX = source.x + ux * sourceOffset;
+      const startY = source.y + uy * sourceOffset;
+      const endX = target.x - ux * targetOffset;
+      const endY = target.y - uy * targetOffset;
+      const controlOffset = Math.max((endX - startX) * 0.42, 44);
+      return `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
     };
 
     const maxEdgeAmount = d3.max(layoutEdges, (edge) => edge.amount) ?? 1;
-    const edgeWidth = d3.scaleLinear().domain([0, maxEdgeAmount]).range([1.2, 6]).clamp(true);
+    const edgeWidth = d3.scaleLinear().domain([0, maxEdgeAmount]).range([1.6, 9]).clamp(true);
     const showEdgeLabels = layoutEdges.length <= 14;
 
     const link = viewport
@@ -202,6 +217,29 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
       .on("click", (_event, datum) => onSelectNode(datum));
 
     node
+      .filter((datum) => datum.nodeType === "Victim")
+      .append("circle")
+      .attr("r", 38)
+      .attr("fill", "none")
+      .attr("stroke", "rgba(88,183,232,0.35)")
+      .attr("stroke-width", 2)
+      .call((selection) => {
+        selection
+          .append("animate")
+          .attr("attributeName", "r")
+          .attr("values", "34;40;34")
+          .attr("dur", "2.2s")
+          .attr("repeatCount", "indefinite");
+
+        selection
+          .append("animate")
+          .attr("attributeName", "opacity")
+          .attr("values", "0.25;0.7;0.25")
+          .attr("dur", "2.2s")
+          .attr("repeatCount", "indefinite");
+      });
+
+    node
       .append("circle")
       .attr("r", (datum) => nodeRadius(datum.nodeType))
       .attr("fill", (datum) => nodeColor(datum))
@@ -222,7 +260,7 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
     node
       .append("text")
       .attr("text-anchor", "middle")
-      .attr("dy", 34)
+      .attr("dy", (datum) => nodeRadius(datum.nodeType) + 18)
       .attr("font-family", "IBM Plex Mono")
       .attr("font-size", 10)
       .attr("fill", "#27445c")

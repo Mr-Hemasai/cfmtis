@@ -100,8 +100,8 @@ export const CaseWorkspacePage = () => {
         <aside className="sticky top-[82px] h-[calc(100vh-106px)] overflow-hidden rounded-[14px] border border-border bg-panel/92 shadow-[0_18px_40px_rgba(22,48,67,0.08)]">
           <div className="border-b border-border px-5 py-5">
             <div className="text-[11px] uppercase tracking-[0.24em] text-secondary">Workspace</div>
-            <div className="mt-2 font-cond text-2xl uppercase tracking-[0.12em] text-primary">{activeCase.complaintId}</div>
-            <div className="mt-2 text-sm text-secondary">{activeCase.victimName}</div>
+            <div className="mt-2 text-lg font-semibold text-primary">{activeCase.victimName}</div>
+            <div className="mt-1 font-mono text-xs text-secondary">{activeCase.complaintId}</div>
             <div className="mt-4 rounded-[10px] border border-border bg-card px-4 py-3">
               <div className="text-[11px] uppercase tracking-[0.18em] text-secondary">Fraud Amount</div>
               <div className="mt-1 font-mono text-lg text-primary">{formatINR(activeCase.fraudAmount)}</div>

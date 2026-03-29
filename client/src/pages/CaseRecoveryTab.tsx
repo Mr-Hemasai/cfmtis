@@ -43,7 +43,18 @@ export const CaseRecoveryTab = () => {
           <div className="section-header">Account-wise Distribution</div>
           <div className="mt-4 space-y-3">
             {recovery.accounts.map((account) => (
-              <div key={account.accountNumber} className="flex items-center justify-between rounded-[4px] border border-border bg-card px-4 py-3">
+              <div
+                key={account.accountNumber}
+                className="flex items-center justify-between rounded-[4px] border border-border border-l-[4px] bg-card px-4 py-3"
+                style={{
+                  borderLeftColor:
+                    account.status === "FROZEN"
+                      ? "var(--accent-green)"
+                      : account.status === "WITHDRAWN"
+                        ? "#98a4b2"
+                        : "var(--accent-red)"
+                }}
+              >
                 <div>
                   <div className="font-mono text-primary">{account.accountNumber}</div>
                   <div className="text-sm text-secondary">{formatINR(account.balance)}</div>

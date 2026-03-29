@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
 
 const tabs = [
+  { label: "Complaint & Upload", key: "complaint" },
   { label: "Money Trail Graph", key: "graph" },
   { label: "Risk & Freeze", key: "risk" },
-  { label: "Recovery Dashboard", key: "recovery" },
-  { label: "Complaint & Upload", key: "complaint" }
+  { label: "Recovery Dashboard", key: "recovery" }
 ];
 
 export const NavTabs = ({ caseId, analysisDone }: { caseId: string; analysisDone: boolean }) => (
@@ -18,7 +18,7 @@ export const NavTabs = ({ caseId, analysisDone }: { caseId: string; analysisDone
             key={tab.key}
             to={disabled ? "#" : to}
             className={({ isActive }) =>
-              `flex items-center gap-2 rounded-t-[10px] border-b-2 px-4 font-cond text-[13px] uppercase tracking-[0.18em] ${
+              `flex items-center gap-2 rounded-t-[10px] border-b-2 px-4 font-cond text-[13px] tracking-[0.08em] ${
                 disabled
                   ? "cursor-not-allowed border-transparent text-dim"
                   : isActive

@@ -153,13 +153,14 @@ model PatternAlert {
 }
 
 model UploadedFile {
-  id        String   @id @default(cuid())
-  filename  String
-  fileType  String
-  sizeMb    Float
+  id         String   @id @default(cuid())
+  filename   String
+  fileType   String
+  sizeMb     Float
   storageKey String?
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  content    Bytes?
+  caseId     String
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 }
 
 model Withdrawal {

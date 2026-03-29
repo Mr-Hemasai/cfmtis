@@ -1,5 +1,6 @@
 import { prisma } from "../prisma/client.js";
 import { getAnalyzerSummary, getBankPerformanceAnalysis, getCaseAnalysisById, getRiskAnalysis } from "../services/analyzerEngine.js";
+import { createTempFileFromBuffer } from "../services/fileStorageService.js";
 import { runAnalyzerForUpload } from "../services/analyzerService.js";
 export const uploadDataset = async (req, res) => {
     const datasetFile = req.file ?? null;
@@ -10,8 +11,14 @@ export const uploadDataset = async (req, res) => {
     if (!officerId) {
         return res.status(401).json({ message: "Officer context missing" });
     }
-    const result = await runAnalyzerForUpload(datasetFile.path, officerId);
-    return res.status(201).json(result);
+    const tempFile = await createTempFileFromBuffer(datasetFile.originalname, datasetFile.buffer);
+    try {
+        const result = await runAnalyzerForUpload(tempFile.path, officerId);
+        return res.status(201).json(result);
+    }
+    finally {
+        await tempFile.cleanup();
+    }
 };
 export const getCaseDetailById = async (req, res) => {
     const caseId = String(req.params.id);

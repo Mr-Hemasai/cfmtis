@@ -23,10 +23,10 @@ app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
 });
 app.use("/api/auth", authRoutes);
+app.use("/api/cases", fileRoutes);
 app.use("/api/cases", caseRoutes);
 app.use("/api/cases", analysisRoutes);
 app.use("/api/cases", freezeRoutes);
-app.use("/api/cases", fileRoutes);
 app.use("/api", analyzerRoutes);
 app.use(errorHandler);
 app.listen(env.PORT, () => {

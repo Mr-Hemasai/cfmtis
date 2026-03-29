@@ -83,7 +83,16 @@ export const getCase = async (req, res) => {
         where: { id: caseId },
         include: {
             officer: true,
-            files: true,
+            files: {
+                select: {
+                    id: true,
+                    filename: true,
+                    fileType: true,
+                    sizeMb: true,
+                    storageKey: true,
+                    caseId: true
+                }
+            },
             accounts: true,
             patternAlerts: true
         }

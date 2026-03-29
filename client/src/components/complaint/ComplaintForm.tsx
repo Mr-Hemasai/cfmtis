@@ -32,6 +32,11 @@ const toDateTimeLocalValue = (value?: string | number) => {
   return new Date(date.getTime() - localOffset).toISOString().slice(0, 16);
 };
 
+const normalizeAccountDisplay = (value?: string | number) => {
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+};
+
 export const ComplaintForm = ({
   initialValues,
   onSubmit
@@ -43,7 +48,7 @@ export const ComplaintForm = ({
     complaintId: String(initialValues?.complaintId ?? ""),
     fraudType: String(initialValues?.fraudType ?? "OTP Fraud"),
     fraudAmount: String(initialValues?.fraudAmount ?? ""),
-    victimAccount: String(initialValues?.victimAccount ?? ""),
+    victimAccount: normalizeAccountDisplay(initialValues?.victimAccount),
     victimName: String(initialValues?.victimName ?? ""),
     fraudTimestamp: toDateTimeLocalValue(initialValues?.fraudTimestamp),
     victimMobile: String(initialValues?.victimMobile ?? ""),
@@ -84,12 +89,21 @@ export const ComplaintForm = ({
           ))}
         </Select>
         <Input value={form.fraudAmount} placeholder="Fraud Amount ₹" onChange={(e) => setForm({ ...form, fraudAmount: e.target.value })} />
-        <Input value={form.victimAccount} placeholder="Victim Account No." onChange={(e) => setForm({ ...form, victimAccount: e.target.value })} />
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={form.victimAccount}
+          placeholder="Victim Account No."
+          onChange={(e) => setForm({ ...form, victimAccount: e.target.value })}
+        />
         <Input value={form.victimName} placeholder="Victim Name" onChange={(e) => setForm({ ...form, victimName: e.target.value })} />
         <Input type="datetime-local" value={form.fraudTimestamp} onChange={(e) => setForm({ ...form, fraudTimestamp: e.target.value })} />
         <Input value={form.victimMobile} placeholder="Victim Mobile" onChange={(e) => setForm({ ...form, victimMobile: e.target.value })} />
         <Input value={form.bankName} placeholder="Bank Name" onChange={(e) => setForm({ ...form, bankName: e.target.value })} />
-        <Input value={form.referenceId} placeholder="Reference ID/UTR" onChange={(e) => setForm({ ...form, referenceId: e.target.value })} />
+        <label className="grid gap-1">
+          <span className="text-[11px] tracking-[0.08em] text-secondary">Reference ID / UTR</span>
+          <Input value={form.referenceId} placeholder="Enter reference number" onChange={(e) => setForm({ ...form, referenceId: e.target.value })} />
+        </label>
         <div className="col-span-3">
           <Textarea value={form.description} placeholder="Incident Description" onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
