@@ -28,9 +28,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
   bootstrap: async () => {
+    const token = getStoredAuthToken();
+
+    if (!token) {
+      set({ officer: null, token: null, loading: false });
+      return;
+    }
+
     try {
       const officer = await meRequest();
-      set({ officer, token: getStoredAuthToken() });
+      set({ officer, token });
     } catch {
       setStoredAuthToken(null);
       set({ officer: null, token: null });
