@@ -1,10 +1,8 @@
-import Queue from "bull";
 import { prisma } from "../prisma/client.js";
 import { parseEvidenceFile } from "../services/parserService.js";
 import { runAnalyzerForCase } from "../services/analyzerService.js";
 import { detectPatterns } from "../services/patternDetector.js";
 import { calculateRiskScore, classifyRiskLevel } from "../services/riskEngine.js";
-import { env } from "../utils/env.js";
 export const analysisSteps = [
     "Parsing transaction records...",
     "Mapping sender/receiver account pairs...",
@@ -23,12 +21,6 @@ const AnalysisStatus = {
     FAILED: "FAILED",
     DONE: "DONE"
 };
-export const analysisQueue = new Queue("case-analysis", env.REDIS_URL, {
-    defaultJobOptions: {
-        removeOnComplete: true,
-        removeOnFail: false
-    }
-});
 const inFlightCases = new Set();
 const progressState = new Map();
 const setProgress = (caseId, status, stepIndex, error) => {
@@ -187,20 +179,9 @@ export const triggerCaseAnalysis = async (caseId) => {
         return;
     }
     setProgress(caseId, AnalysisStatus.QUEUED, 0);
-    try {
-        await analysisQueue.add({ caseId });
-        setTimeout(() => {
-            if (!inFlightCases.has(caseId)) {
-                void processCaseAnalysis(caseId).catch(() => undefined);
-            }
-        }, 750);
-    }
-    catch {
-        setTimeout(() => {
+    setTimeout(() => {
+        if (!inFlightCases.has(caseId)) {
             void processCaseAnalysis(caseId).catch(() => undefined);
-        }, 50);
-    }
+        }
+    }, 50);
 };
-analysisQueue.process(async (job) => {
-    await processCaseAnalysis(job.data.caseId);
-});

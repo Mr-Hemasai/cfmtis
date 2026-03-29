@@ -18,7 +18,7 @@ async function main() {
             badgeNumber: "CID-001",
             name: "Inspector A. Rao",
             rank: "Inspector",
-            department: "Telangana Police | CID Cyber Cell",
+            department: "ananthapur Police |  Cyber Cell",
             passwordHash,
             role: "ADMIN"
         }

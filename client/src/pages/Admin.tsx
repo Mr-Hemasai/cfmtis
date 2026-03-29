@@ -15,7 +15,7 @@ export const AdminPage = () => (
         </div>
         <div className="rounded-[4px] border border-border bg-card p-4">
           <div className="font-cond text-sm uppercase tracking-[0.2em] text-secondary">System Status</div>
-          <div className="mt-2 text-sm text-secondary">Backend queue, Redis, and database health indicators.</div>
+          <div className="mt-2 text-sm text-secondary">Backend analysis worker and database health indicators.</div>
         </div>
       </div>
     </div>

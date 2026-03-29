@@ -9,3 +9,7 @@ export const meRequest = async () => {
   const { data } = await api.get("/auth/me");
   return data;
 };
+
+export const logoutRequest = async () => {
+  await api.post("/auth/logout");
+};

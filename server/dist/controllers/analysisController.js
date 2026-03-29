@@ -4,6 +4,9 @@ import { calculateRecovery } from "../services/recoveryEngine.js";
 import { buildMoneyTrailGraph, getNodeType } from "../services/graphBuilder.js";
 import { logger } from "../utils/logger.js";
 const toRecord = (value, fallback) => value && typeof value === "object" ? value : fallback;
+const normalizeAccount = (value) => String(value ?? "")
+    .trim()
+    .replace(/\s+/g, "");
 const getFrozenAccountNumbers = (caseRecord) => new Set((caseRecord.freezeActions ?? [])
     .map((item) => String(item.accountNumber ?? "").trim())
     .filter(Boolean));
@@ -56,7 +59,7 @@ const toAnalyzerGraph = (caseRecord, analysis) => {
     const frozenAccounts = getFrozenAccountNumbers(caseRecord);
     const nodes = trailGraph.nodes.map((node, index) => {
         const accountNumber = String(node.accountNumber ?? node.id ?? `node-${index}`);
-        const isVictim = accountNumber === caseRecord.victimAccount;
+        const isVictim = normalizeAccount(accountNumber) === normalizeAccount(trailGraph.rootAccount);
         const isMule = muleAccounts.has(accountNumber);
         const repeated = repeatedAccounts.has(accountNumber);
         const isFrozen = frozenAccounts.has(accountNumber);
@@ -80,10 +83,14 @@ const toAnalyzerGraph = (caseRecord, analysis) => {
             accountNumber,
             label: accountNumber,
             bankName: String(node.bank ?? caseRecord.bankName ?? "Unknown Bank"),
-            holderName: participantProfiles[accountNumber]?.holderName ??
-                (isVictim ? caseRecord.victimName : `Linked Entity ${index + 1}`),
-            phoneNumber: participantProfiles[accountNumber]?.phoneNumber ??
-                (isVictim ? caseRecord.victimMobile : null),
+            holderName: (isVictim
+                ? caseRecord.victimName
+                : participantProfiles[accountNumber]?.holderName) ??
+                `Linked Entity ${index + 1}`,
+            phoneNumber: (isVictim
+                ? caseRecord.victimMobile
+                : participantProfiles[accountNumber]?.phoneNumber) ??
+                null,
             amountReceived: Number(node.totalIncoming ?? 0),
             currentBalance: Math.max(Number(node.totalIncoming ?? 0) - Number(node.totalOutgoing ?? 0), 0),
             chainDepth: Number(node.depth ?? 0),
@@ -133,7 +140,7 @@ const toAnalyzerGraph = (caseRecord, analysis) => {
         edges,
         alerts,
         summary: {
-            victimAccount: caseRecord.victimAccount,
+            victimAccount: trailGraph.rootAccount || caseRecord.victimAccount,
             fraudAmount: Number(analysis.totalAmount ?? caseRecord.fraudAmount ?? 0),
             accounts: nodes.length,
             transfers: edges.length,
@@ -156,13 +163,17 @@ const toAnalyzerRisk = (caseRecord, analysis) => {
         recoveredAmount: 0,
         lostAmount: 0
     });
+    const moneyTrail = toRecord(analysis.moneyTrail, {
+        participantProfiles: {}
+    });
+    const participantProfiles = toRecord(moneyTrail.participantProfiles, {});
     const repeatedAccounts = new Set(patternInsights.repeatedAccounts ?? []);
     const muleAccounts = new Set(patternInsights.muleAccounts ?? []);
     const frozenAccounts = getFrozenAccountNumbers(caseRecord);
     const items = trailGraph.nodes
         .map((node, index) => {
         const accountNumber = String(node.accountNumber ?? node.id ?? `account-${index}`);
-        const isVictim = accountNumber === caseRecord.victimAccount;
+        const isVictim = normalizeAccount(accountNumber) === normalizeAccount(trailGraph.rootAccount);
         const isMule = muleAccounts.has(accountNumber);
         const isRepeated = repeatedAccounts.has(accountNumber);
         const isFrozen = frozenAccounts.has(accountNumber);
@@ -184,7 +195,9 @@ const toAnalyzerRisk = (caseRecord, analysis) => {
         return {
             id: String(node.id ?? accountNumber),
             accountNumber,
-            holderName: isVictim ? caseRecord.victimName : `Linked Entity ${index + 1}`,
+            holderName: isVictim
+                ? caseRecord.victimName
+                : participantProfiles[accountNumber]?.holderName ?? `Linked Entity ${index + 1}`,
             bankName: String(node.bank ?? caseRecord.bankName ?? "Unknown Bank"),
             currentBalance: Math.max(Number(node.totalIncoming ?? 0) - Number(node.totalOutgoing ?? 0), 0),
             amountReceived: Number(node.totalIncoming ?? 0),

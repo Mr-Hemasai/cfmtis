@@ -9,13 +9,15 @@ type UseGraphOptions = {
   onSelectEdge: (edge: GraphEdge) => void;
 };
 
-const nodeColor = (type: GraphNode["nodeType"]) => {
-  if (type === "Victim") return "#cf6a6a";
-  if (type === "Mule") return "#c3904d";
-  if (type === "Suspect") return "#8e79bc";
-  if (type === "Transfer") return "#d0a84b";
-  if (type === "Frozen") return "#8b99a7";
-  return "#5d916f";
+const nodeColor = (node: GraphNode) => {
+  if (node.nodeType === "Victim") return "#58b7e8";
+  if (node.nodeType === "Frozen") return "#8b99a7";
+  if (node.nodeType === "Recovered") return "#5d916f";
+  if (node.nodeType === "Mule") return "#8e79bc";
+  if (node.riskLevel === "CRITICAL") return "#cf4b4b";
+  if (node.riskLevel === "HIGH") return "#db6a4d";
+  if (node.riskLevel === "MEDIUM") return "#d0a84b";
+  return "#76a77f";
 };
 
 const nodeRadius = (type: GraphNode["nodeType"]) => {
@@ -30,11 +32,14 @@ const compactAccountLabel = (accountNumber: string) =>
 
 export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphOptions) => {
   const ref = useRef<SVGSVGElement | null>(null);
+  const svgRef = useRef<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   useEffect(() => {
     if (!ref.current || nodes.length === 0) return;
 
     const svg = d3.select(ref.current);
+    svgRef.current = svg;
     const baseWidth = ref.current.clientWidth || 900;
     const baseHeight = ref.current.clientHeight || 680;
     svg.selectAll("*").remove();
@@ -54,12 +59,12 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
       .attr("d", "M0,-5L10,0L0,5");
 
     const viewport = svg.append("g");
-    svg.call(
-      d3
-        .zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.08, 10])
-        .on("zoom", (event) => viewport.attr("transform", event.transform.toString()))
-    );
+    const zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.08, 10])
+      .on("zoom", (event) => viewport.attr("transform", event.transform.toString()));
+    zoomRef.current = zoomBehavior;
+    svg.call(zoomBehavior);
 
     const depthMap = d3.group(
       [...nodes].sort((a, b) => a.chainDepth - b.chainDepth || b.amountReceived - a.amountReceived),
@@ -199,7 +204,7 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
     node
       .append("circle")
       .attr("r", (datum) => nodeRadius(datum.nodeType))
-      .attr("fill", (datum) => nodeColor(datum.nodeType))
+      .attr("fill", (datum) => nodeColor(datum))
       .attr("stroke", "#ffffff")
       .attr("stroke-width", 1);
 
@@ -248,5 +253,23 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
     };
   }, [nodes, edges, onSelectNode, onSelectEdge]);
 
-  return ref;
+  const adjustZoom = (factor: number) => {
+    if (!svgRef.current || !zoomRef.current) return;
+    svgRef.current
+      .transition()
+      .duration(180)
+      .call(zoomRef.current.scaleBy, factor);
+  };
+
+  const zoomIn = () => adjustZoom(1.2);
+  const zoomOut = () => adjustZoom(0.84);
+  const resetZoom = () => {
+    if (!svgRef.current || !zoomRef.current) return;
+    svgRef.current
+      .transition()
+      .duration(220)
+      .call(zoomRef.current.transform, d3.zoomIdentity);
+  };
+
+  return { ref, zoomIn, zoomOut, resetZoom };
 };

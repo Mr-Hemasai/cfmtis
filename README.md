@@ -5,8 +5,6 @@ Cyber Fraud Money Trail Intelligence System.
 ## Run
 
 ```bash
-docker-compose up -d
-
 cd server
 npm install
 npx prisma migrate dev --name init

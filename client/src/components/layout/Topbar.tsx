@@ -1,8 +1,10 @@
+import { Link } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { MonoBadge } from "../ui/Badge";
 
 export const Topbar = ({ caseId }: { caseId?: string }) => {
   const officer = useAuthStore((state) => state.officer);
+  const logout = useAuthStore((state) => state.logout);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-30 h-[58px] border-b border-border bg-panel/92 px-6 backdrop-blur">
@@ -27,6 +29,19 @@ export const Topbar = ({ caseId }: { caseId?: string }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center justify-center rounded-[3px] border border-bright/70 px-3 py-2 font-cond text-[12px] uppercase tracking-[0.22em] text-primary transition hover:bg-hover"
+          >
+            Home
+          </Link>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="inline-flex items-center justify-center rounded-[3px] border border-red/30 px-3 py-2 font-cond text-[12px] uppercase tracking-[0.22em] text-red transition hover:bg-red/8"
+          >
+            Logout
+          </button>
           {caseId && <MonoBadge>CASE: {caseId}</MonoBadge>}
           <div className="text-right text-sm text-secondary">
             <div>{officer?.name ?? "Officer"}</div>

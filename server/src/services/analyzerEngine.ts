@@ -27,8 +27,51 @@ type ExistingCaseTarget = {
   bankName: string;
 };
 
-const derivePrimaryVictim = (bundle: CaseBundle) => {
+type VictimProfile = {
+  accountNumber?: string;
+  bankName?: string;
+  victimName?: string;
+  victimMobile?: string;
+};
+
+const resolveVictimProfileFromTransfers = (
+  transfers: DatasetTransferRow[],
+  preferredAccount?: string | null
+): VictimProfile | null => {
+  if (!preferredAccount) return null;
+
+  const matched = transfers.find(
+    (transfer) =>
+      accountMatches(transfer.senderAccount, preferredAccount) ||
+      accountMatches(transfer.receiverAccount, preferredAccount)
+  );
+
+  if (!matched) return null;
+
+  if (accountMatches(matched.senderAccount, preferredAccount)) {
+    return {
+      accountNumber: matched.senderAccount,
+      bankName: matched.senderBankName,
+      victimName: matched.senderName ?? matched.victimName,
+      victimMobile: matched.senderPhone ?? matched.victimMobile
+    };
+  }
+
+  return {
+    accountNumber: matched.receiverAccount,
+    bankName: matched.receiverBankName,
+    victimName: matched.receiverName,
+    victimMobile: matched.receiverPhone
+  };
+};
+
+const derivePrimaryVictim = (bundle: CaseBundle, preferredAccount?: string | null) => {
   const transfers = bundle.transfers;
+  const preferredProfile = resolveVictimProfileFromTransfers(transfers, preferredAccount);
+  if (preferredProfile) {
+    return preferredProfile;
+  }
+
   if (!transfers.length) {
     return {
       accountNumber: undefined,
@@ -167,7 +210,7 @@ const deriveExposureAmount = (bundle: CaseBundle) => {
   return Math.max(transferAmount, withdrawalAmount, holdAmount + bankActionAmount, smallTransactionAmount, 0);
 };
 
-const buildMoneyTrail = (bundle: CaseBundle) => {
+const buildMoneyTrail = (bundle: CaseBundle, preferredVictimAccount?: string | null) => {
   const transfers = bundle.transfers;
   const participantProfiles = Object.fromEntries(
     transfers.flatMap((item) => [
@@ -275,7 +318,10 @@ const buildMoneyTrail = (bundle: CaseBundle) => {
 
   const visited = new Set<string>();
   const path: string[] = [];
-  const root = derivePrimaryVictim(bundle).accountNumber ?? transfers[0]?.senderAccount;
+  const root =
+    resolveVictimProfileFromTransfers(transfers, preferredVictimAccount)?.accountNumber ??
+    derivePrimaryVictim(bundle, preferredVictimAccount).accountNumber ??
+    transfers[0]?.senderAccount;
   const dfs = (node?: string) => {
     if (!node || visited.has(node)) return;
     visited.add(node);
@@ -790,9 +836,13 @@ const ensureCase = async (bundle: CaseBundle, officerId: string) => {
   });
 };
 
-const upsertCaseAnalysisRecord = async (caseId: string, bundle: CaseBundle) => {
+const upsertCaseAnalysisRecord = async (
+  caseId: string,
+  bundle: CaseBundle,
+  preferredVictimAccount?: string | null
+) => {
   const totalAmount = deriveExposureAmount(bundle);
-  const moneyTrail = buildMoneyTrail(bundle);
+  const moneyTrail = buildMoneyTrail(bundle, preferredVictimAccount);
   const timeline = buildTimeline(bundle);
   const withdrawalIntelligence = buildWithdrawalIntelligence(bundle.withdrawals);
   const recovery = buildRecovery(bundle, totalAmount);
@@ -865,8 +915,7 @@ export const ingestAnalyzerDatasetForCase = async (
     throw new Error("No acknowledgement bundles found in analyzer workbook");
   }
 
-  const primaryTransfer = bundle.transfers[0];
-  const primaryVictim = derivePrimaryVictim(bundle);
+  const primaryVictim = derivePrimaryVictim(bundle, caseRecord.victimAccount);
   const fraudTimestamp =
     bundle.transfers.map((item) => item.timestamp).find(Boolean) ??
     bundle.withdrawals.map((item) => item.timestamp).find(Boolean) ??
@@ -878,15 +927,15 @@ export const ingestAnalyzerDatasetForCase = async (
     data: {
       fraudAmount: totalAmount || caseRecord.fraudAmount,
       fraudTimestamp: fraudTimestamp ?? undefined,
-      victimAccount: primaryVictim.accountNumber || caseRecord.victimAccount,
-      bankName: primaryVictim.bankName || caseRecord.bankName,
+      victimAccount: caseRecord.victimAccount || primaryVictim.accountNumber || undefined,
+      bankName: caseRecord.bankName || primaryVictim.bankName || undefined,
       victimName: caseRecord.victimName || primaryVictim.victimName || undefined,
       victimMobile: caseRecord.victimMobile || primaryVictim.victimMobile || undefined
     }
   });
 
   await syncBundleToDatabase(caseRecord.id, bundle);
-  const analysis = await upsertCaseAnalysisRecord(caseRecord.id, bundle);
+  const analysis = await upsertCaseAnalysisRecord(caseRecord.id, bundle, caseRecord.victimAccount);
 
   return {
     acknowledgementNo: bundle.acknowledgementNo,

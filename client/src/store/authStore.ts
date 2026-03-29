@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { loginRequest, meRequest } from "../api/auth";
+import { loginRequest, logoutRequest, meRequest } from "../api/auth";
 import { Officer } from "../types";
 
 type AuthState = {
@@ -8,6 +8,7 @@ type AuthState = {
   loading: boolean;
   login: (badgeNumber: string, password: string) => Promise<void>;
   bootstrap: () => Promise<void>;
+  logout: () => Promise<void>;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -16,8 +17,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: false,
   login: async (badgeNumber, password) => {
     set({ loading: true });
-    const data = await loginRequest(badgeNumber, password);
-    set({ officer: data.officer, token: data.token, loading: false });
+    try {
+      const data = await loginRequest(badgeNumber, password);
+      set({ officer: data.officer, token: data.token, loading: false });
+    } catch (error) {
+      set({ loading: false });
+      throw error;
+    }
   },
   bootstrap: async () => {
     try {
@@ -25,6 +31,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ officer });
     } catch {
       set({ officer: null, token: null });
+    }
+  },
+  logout: async () => {
+    try {
+      await logoutRequest();
+    } finally {
+      set({ officer: null, token: null, loading: false });
     }
   }
 }));

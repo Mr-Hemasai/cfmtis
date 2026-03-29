@@ -87,10 +87,51 @@ type BuildGraphInput = {
   fallbackBankName?: string;
 };
 
-const normalizeAccount = (value?: string | null) =>
-  String(value ?? "")
+const normalizeAccount = (value?: string | null) => {
+  const raw = String(value ?? "")
     .trim()
     .replace(/\s+/g, "");
+  if (!raw) return "";
+
+  const scientificMatch = raw.match(/^(\d+(?:\.\d+)?)e\+?(\d+)$/i);
+  if (!scientificMatch) return raw;
+
+  const [, mantissa, exponentText] = scientificMatch;
+  const exponent = Number(exponentText);
+  const mantissaDigits = mantissa.replace(".", "");
+  const decimals = mantissa.includes(".") ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
+  return `${mantissaDigits}${"0".repeat(Math.max(exponent - decimals, 0))}`;
+};
+
+const accountCandidates = (value?: string | null) => {
+  const normalized = normalizeAccount(value);
+  if (!normalized) return [];
+
+  const rawDigits = normalized.replace(/\D+/g, "");
+  const candidates = new Set<string>([normalized, rawDigits]);
+  if (rawDigits.length >= 6) {
+    candidates.add(rawDigits.slice(0, 6));
+  }
+
+  return [...candidates].filter(Boolean);
+};
+
+const accountMatches = (left?: string | null, right?: string | null) => {
+  const leftCandidates = accountCandidates(left);
+  const rightCandidates = accountCandidates(right);
+  if (!leftCandidates.length || !rightCandidates.length) return false;
+
+  return leftCandidates.some((leftValue) =>
+    rightCandidates.some((rightValue) => {
+      if (!leftValue || !rightValue) return false;
+      return (
+        leftValue === rightValue ||
+        (leftValue.length >= 6 && rightValue.startsWith(leftValue)) ||
+        (rightValue.length >= 6 && leftValue.startsWith(rightValue))
+      );
+    })
+  );
+};
 
 const inferNodeType = (depth: number, withdrawalDetected: boolean): TrailAccountNode["type"] => {
   if (depth === 0) return "victim";
@@ -119,7 +160,6 @@ export const buildMoneyTrailGraph = ({
   smallTransactions,
   fallbackBankName
 }: BuildGraphInput): MoneyTrailGraph => {
-  const rootAccount = normalizeAccount(victimAccount) || "UNKNOWN-VICTIM";
   const normalizedTransfers = transfers
     .map((transfer) => ({
       id: transfer.txnId,
@@ -147,6 +187,17 @@ export const buildMoneyTrailGraph = ({
       bankByAccount.set(accountNumber, withdrawal.bankName);
     }
   });
+
+  const matchedVictimAccount =
+    normalizedTransfers.find(
+      (transfer) =>
+        accountMatches(transfer.from, victimAccount) || accountMatches(transfer.to, victimAccount)
+    )?.from ??
+    normalizedTransfers.find(
+      (transfer) =>
+        accountMatches(transfer.to, victimAccount) || accountMatches(transfer.from, victimAccount)
+    )?.to;
+  const rootAccount = matchedVictimAccount ?? (normalizeAccount(victimAccount) || "UNKNOWN-VICTIM");
 
   if (!normalizedTransfers.length) {
     const inferredAccounts = new Map<string, { amount: number; withdrawalDetected: boolean }>();

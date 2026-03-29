@@ -56,25 +56,6 @@ export const CaseRecoveryTab = () => {
 
         <RecoveryDonutChart recoverable={totals.recoverable} atRisk={totals.atRisk} lost={totals.lost} />
       </div>
-
-      <div className="panel-card p-5">
-        <div className="section-header">System Analysis Log</div>
-        <div className="mt-4 max-h-[260px] overflow-auto rounded-[4px] border border-border bg-[#09111c] p-4 font-mono text-xs">
-          <div className="grid grid-cols-[220px_100px_1fr] gap-3 border-b border-border pb-2 text-dim">
-            <span>[timestamp]</span>
-            <span>[LEVEL]</span>
-            <span>message</span>
-          </div>
-          {recovery.log.map((item, index) => (
-            <div key={`${item.timestamp}-${index}`} className="grid grid-cols-[220px_100px_1fr] gap-3 border-b border-border/50 py-3">
-              <span className="text-secondary">{new Date(item.timestamp).toLocaleString("en-IN")}</span>
-              <span className={item.level === "ALERT" ? "text-red" : item.level === "WARN" ? "text-yellow" : "text-cyan"}>{item.level}</span>
-              <span className="text-primary">{item.message}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="panel-card p-5">
         <div className="section-header">Freeze Audit Log</div>
         <div className="mt-4 grid gap-3">

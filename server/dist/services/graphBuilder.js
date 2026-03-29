@@ -1,6 +1,42 @@
-const normalizeAccount = (value) => String(value ?? "")
-    .trim()
-    .replace(/\s+/g, "");
+const normalizeAccount = (value) => {
+    const raw = String(value ?? "")
+        .trim()
+        .replace(/\s+/g, "");
+    if (!raw)
+        return "";
+    const scientificMatch = raw.match(/^(\d+(?:\.\d+)?)e\+?(\d+)$/i);
+    if (!scientificMatch)
+        return raw;
+    const [, mantissa, exponentText] = scientificMatch;
+    const exponent = Number(exponentText);
+    const mantissaDigits = mantissa.replace(".", "");
+    const decimals = mantissa.includes(".") ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
+    return `${mantissaDigits}${"0".repeat(Math.max(exponent - decimals, 0))}`;
+};
+const accountCandidates = (value) => {
+    const normalized = normalizeAccount(value);
+    if (!normalized)
+        return [];
+    const rawDigits = normalized.replace(/\D+/g, "");
+    const candidates = new Set([normalized, rawDigits]);
+    if (rawDigits.length >= 6) {
+        candidates.add(rawDigits.slice(0, 6));
+    }
+    return [...candidates].filter(Boolean);
+};
+const accountMatches = (left, right) => {
+    const leftCandidates = accountCandidates(left);
+    const rightCandidates = accountCandidates(right);
+    if (!leftCandidates.length || !rightCandidates.length)
+        return false;
+    return leftCandidates.some((leftValue) => rightCandidates.some((rightValue) => {
+        if (!leftValue || !rightValue)
+            return false;
+        return (leftValue === rightValue ||
+            (leftValue.length >= 6 && rightValue.startsWith(leftValue)) ||
+            (rightValue.length >= 6 && leftValue.startsWith(rightValue)));
+    }));
+};
 const inferNodeType = (depth, withdrawalDetected) => {
     if (depth === 0)
         return "victim";
@@ -22,7 +58,6 @@ export const getNodeType = (riskLevel, chainDepth, isFrozen, isVictim) => {
     return "Recovered";
 };
 export const buildMoneyTrailGraph = ({ victimAccount, transfers, withdrawals, smallTransactions, fallbackBankName }) => {
-    const rootAccount = normalizeAccount(victimAccount) || "UNKNOWN-VICTIM";
     const normalizedTransfers = transfers
         .map((transfer) => ({
         id: transfer.txnId,
@@ -51,6 +86,9 @@ export const buildMoneyTrailGraph = ({ victimAccount, transfers, withdrawals, sm
             bankByAccount.set(accountNumber, withdrawal.bankName);
         }
     });
+    const matchedVictimAccount = normalizedTransfers.find((transfer) => accountMatches(transfer.from, victimAccount) || accountMatches(transfer.to, victimAccount))?.from ??
+        normalizedTransfers.find((transfer) => accountMatches(transfer.to, victimAccount) || accountMatches(transfer.from, victimAccount))?.to;
+    const rootAccount = matchedVictimAccount ?? (normalizeAccount(victimAccount) || "UNKNOWN-VICTIM");
     if (!normalizedTransfers.length) {
         const inferredAccounts = new Map();
         withdrawals.forEach((withdrawal) => {

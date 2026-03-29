@@ -3,7 +3,6 @@ import { useOutletContext } from "react-router-dom";
 import { GraphCanvas } from "../components/graph/GraphCanvas";
 import { NodeDetailCard } from "../components/graph/NodeDetailCard";
 import { useFreeze } from "../hooks/useFreeze";
-import { useCaseStore } from "../store/caseStore";
 import { useGraphStore } from "../store/graphStore";
 import { formatINR } from "../utils/format";
 
@@ -15,9 +14,7 @@ export const CaseGraphTab = () => {
   const selectedNode = useGraphStore((state) => state.selectedNode);
   const selectedEdge = useGraphStore((state) => state.selectedEdge);
   const markNodeInnocent = useGraphStore((state) => state.markNodeInnocent);
-  const alerts = useCaseStore((state) => state.patternAlerts);
   const { freezeAccount } = useFreeze();
-  const safeAlerts = alerts.filter(Boolean);
   const graphAvailable = analysisDone || nodes.length > 0 || Boolean(summary);
   const [selectedLevel, setSelectedLevel] = useState<"ALL" | number>("ALL");
   const availableLevels = useMemo(
@@ -115,35 +112,6 @@ export const CaseGraphTab = () => {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="panel-card flex-1 p-4">
-          <div className="section-header">Pattern Alerts</div>
-          <div className="mt-4 grid gap-3">
-            {safeAlerts.map((alert, index) => (
-              <div
-                key={alert.id}
-                className="rounded-[4px] border-l-2 bg-card/90 p-3 text-sm"
-                style={{
-                  borderColor:
-                    alert.severity === "CRITICAL"
-                      ? "var(--accent-red)"
-                      : alert.severity === "HIGH"
-                        ? "var(--accent-orange)"
-                        : "var(--accent-yellow)",
-                  animation: `pulse-number 0.35s ease ${index * 0.1}s both`
-                }}
-              >
-                <div className="font-cond uppercase tracking-[0.18em] text-primary">
-                  {String(alert.type ?? "ANALYZER_ALERT").split("_").join(" ")}
-                </div>
-                <div className="mt-1 text-secondary">{alert.message}</div>
-              </div>
-            ))}
-            {safeAlerts.length === 0 && (
-              <div className="font-mono text-sm text-dim">No pattern alerts generated for this case.</div>
-            )}
-          </div>
         </div>
       </aside>
     </div>
