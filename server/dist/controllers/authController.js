@@ -8,6 +8,12 @@ const loginSchema = z.object({
     badgeNumber: z.string().trim().min(3),
     password: z.string().min(6)
 });
+const authCookieOptions = {
+    httpOnly: true,
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    secure: env.NODE_ENV === "production",
+    maxAge: 8 * 60 * 60 * 1000
+};
 const handleAuthDatabaseError = (error, res) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError &&
         (error.code === "P2021" || error.code === "P2022")) {
@@ -34,12 +40,7 @@ export const login = async (req, res) => {
             badgeNumber: officer.badgeNumber,
             role: officer.role
         });
-        res.cookie("token", token, {
-            httpOnly: true,
-            sameSite: "lax",
-            secure: env.NODE_ENV === "production",
-            maxAge: 8 * 60 * 60 * 1000
-        });
+        res.cookie("token", token, authCookieOptions);
         return res.json({
             token,
             officer: {
@@ -57,11 +58,7 @@ export const login = async (req, res) => {
     }
 };
 export const logout = async (_req, res) => {
-    res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: env.NODE_ENV === "production"
-    });
+    res.clearCookie("token", authCookieOptions);
     return res.status(204).send();
 };
 export const me = async (req, res) => {

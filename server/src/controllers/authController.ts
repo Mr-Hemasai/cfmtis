@@ -11,6 +11,13 @@ const loginSchema = z.object({
   password: z.string().min(6)
 });
 
+const authCookieOptions = {
+  httpOnly: true,
+  sameSite: env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
+  secure: env.NODE_ENV === "production",
+  maxAge: 8 * 60 * 60 * 1000
+};
+
 const handleAuthDatabaseError = (error: unknown, res: Response) => {
   if (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -45,12 +52,7 @@ export const login = async (req: Request, res: Response) => {
       role: officer.role
     });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: env.NODE_ENV === "production",
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    res.cookie("token", token, authCookieOptions);
 
     return res.json({
       token,
@@ -69,11 +71,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const logout = async (_req: Request, res: Response) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production"
-  });
+  res.clearCookie("token", authCookieOptions);
   return res.status(204).send();
 };
 
