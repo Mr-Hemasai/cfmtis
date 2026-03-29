@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { loginRequest, logoutRequest, meRequest } from "../api/auth";
+import { getStoredAuthToken, setStoredAuthToken } from "../api/client";
 import { Officer } from "../types";
 
 type AuthState = {
@@ -13,12 +14,13 @@ type AuthState = {
 
 export const useAuthStore = create<AuthState>((set) => ({
   officer: null,
-  token: null,
+  token: getStoredAuthToken(),
   loading: false,
   login: async (badgeNumber, password) => {
     set({ loading: true });
     try {
       const data = await loginRequest(badgeNumber, password);
+      setStoredAuthToken(data.token);
       set({ officer: data.officer, token: data.token, loading: false });
     } catch (error) {
       set({ loading: false });
@@ -28,8 +30,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   bootstrap: async () => {
     try {
       const officer = await meRequest();
-      set({ officer });
+      set({ officer, token: getStoredAuthToken() });
     } catch {
+      setStoredAuthToken(null);
       set({ officer: null, token: null });
     }
   },
@@ -37,6 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await logoutRequest();
     } finally {
+      setStoredAuthToken(null);
       set({ officer: null, token: null, loading: false });
     }
   }
