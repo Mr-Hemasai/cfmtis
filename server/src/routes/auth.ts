@@ -8,9 +8,13 @@ const router = Router();
 router.post(
   "/login",
   rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    standardHeaders: true
+    windowMs: 10 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    message: {
+      message: "Too many login attempts. Wait a few minutes and try again."
+    },
+    skipSuccessfulRequests: true
   }),
   login
 );
