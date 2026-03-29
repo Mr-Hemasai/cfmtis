@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma/client.js";
 import { materializeStoredFile } from "../services/fileStorageService.js";
 import { parseEvidenceFile } from "../services/parserService.js";
@@ -34,6 +35,39 @@ const setProgress = (caseId, status, stepIndex, error) => {
     });
 };
 export const getCaseAnalysisProgress = (caseId) => progressState.get(caseId);
+const getCaseFilesForAnalysis = async (caseId) => {
+    try {
+        return await prisma.uploadedFile.findMany({
+            where: { caseId },
+            select: {
+                id: true,
+                filename: true,
+                fileType: true,
+                sizeMb: true,
+                storageKey: true,
+                content: true,
+                caseId: true
+            }
+        });
+    }
+    catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError &&
+            (error.code === "P2021" || error.code === "P2022")) {
+            return prisma.uploadedFile.findMany({
+                where: { caseId },
+                select: {
+                    id: true,
+                    filename: true,
+                    fileType: true,
+                    sizeMb: true,
+                    storageKey: true,
+                    caseId: true
+                }
+            });
+        }
+        throw error;
+    }
+};
 const deriveMetrics = (accountNumber, txns) => {
     const received = txns.filter((txn) => txn.receiver_account === accountNumber);
     const sent = txns.filter((txn) => txn.sender_account === accountNumber);
@@ -58,23 +92,21 @@ export const processCaseAnalysis = async (caseId) => {
     try {
         const caseRecord = await prisma.case.findUnique({
             where: { id: caseId },
-            include: {
-                files: {
-                    select: {
-                        id: true,
-                        filename: true,
-                        fileType: true,
-                        sizeMb: true,
-                        storageKey: true,
-                        caseId: true
-                    }
-                }
+            select: {
+                id: true,
+                complaintId: true,
+                fraudAmount: true,
+                victimAccount: true,
+                victimName: true,
+                victimMobile: true,
+                bankName: true
             }
         });
         if (!caseRecord) {
             throw new Error("Case not found");
         }
-        const analyzerWorkbook = caseRecord.files.find((file) => /\.xlsx?$/i.test(String(file.filename ?? file.storageKey ?? "")));
+        const caseFiles = await getCaseFilesForAnalysis(caseId);
+        const analyzerWorkbook = caseFiles.find((file) => /\.xlsx?$/i.test(String(file.filename ?? file.storageKey ?? "")));
         if (analyzerWorkbook) {
             setProgress(caseId, AnalysisStatus.RUNNING, 1);
             const workbookFile = await materializeStoredFile(analyzerWorkbook);
@@ -100,7 +132,7 @@ export const processCaseAnalysis = async (caseId) => {
             return;
         }
         setProgress(caseId, AnalysisStatus.RUNNING, 1);
-        const materializedFiles = await Promise.all(caseRecord.files.map(async (file) => ({
+        const materializedFiles = await Promise.all(caseFiles.map(async (file) => ({
             file,
             temp: await materializeStoredFile(file)
         })));
