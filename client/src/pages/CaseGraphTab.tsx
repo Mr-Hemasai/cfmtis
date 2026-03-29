@@ -14,7 +14,7 @@ export const CaseGraphTab = () => {
   const selectedNode = useGraphStore((state) => state.selectedNode);
   const selectedEdge = useGraphStore((state) => state.selectedEdge);
   const markNodeInnocent = useGraphStore((state) => state.markNodeInnocent);
-  const { freezeAccount } = useFreeze();
+  const { freezeAccount, unfreezeAccount } = useFreeze();
   const graphAvailable = analysisDone || nodes.length > 0 || Boolean(summary);
   const [selectedLevel, setSelectedLevel] = useState<"ALL" | number>("ALL");
   const availableLevels = useMemo(
@@ -85,7 +85,12 @@ export const CaseGraphTab = () => {
           </div>
         </div>
 
-        <NodeDetailCard node={selectedNode} onFreeze={freezeAccount} onMarkInnocent={markNodeInnocent} />
+        <NodeDetailCard
+          node={selectedNode}
+          onFreeze={freezeAccount}
+          onUnfreeze={unfreezeAccount}
+          onMarkInnocent={markNodeInnocent}
+        />
 
         <div className="panel-card p-4">
           <div className="section-header">Transaction</div>

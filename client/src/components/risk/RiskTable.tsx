@@ -12,10 +12,12 @@ const scoreColor = (score: number) => {
 
 export const RiskTable = ({
   items,
-  onFreeze
+  onFreeze,
+  onUnfreeze
 }: {
   items: RiskAccount[];
   onFreeze: (accountId: string) => void;
+  onUnfreeze: (accountId: string) => void;
 }) => (
   <div className="panel-card overflow-hidden">
     <div className="overflow-x-auto">
@@ -57,8 +59,8 @@ export const RiskTable = ({
                 {item.chainDepth > 2 ? "Deep chain node" : "Direct mule"}
               </td>
               <td className="px-4 py-3">
-                <Button variant="danger" disabled={item.isFrozen} onClick={() => onFreeze(item.id)}>
-                  {item.isFrozen ? "Frozen" : "Freeze"}
+                <Button variant="danger" onClick={() => (item.isFrozen ? onUnfreeze(item.id) : onFreeze(item.id))}>
+                  {item.isFrozen ? "Undo Freeze" : "Freeze"}
                 </Button>
               </td>
             </tr>

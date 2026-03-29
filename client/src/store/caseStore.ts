@@ -22,6 +22,7 @@ type CaseState = {
   setAnalysis: (analysis: Partial<CaseState["analysis"]>) => void;
   setUploadedFiles: (files: Array<Record<string, unknown>>) => void;
   markFrozen: (accountId: string) => void;
+  unmarkFrozen: (accountId: string) => void;
   updateCaseAnalysisStatus: (caseId: string, analysisStatus: CaseRecord["analysisStatus"]) => void;
 };
 
@@ -107,6 +108,46 @@ export const useCaseStore = create<CaseState>((set) => ({
           accounts: state.recoveryData.accounts.map((item) =>
             frozenAccount && item.accountNumber === frozenAccount.accountNumber
               ? { ...item, status: "FROZEN" }
+              : item
+          )
+        }
+      };
+    }),
+  unmarkFrozen: (accountId) =>
+    set((state) => {
+      const next = new Set(state.frozenAccounts);
+      next.delete(accountId);
+      const thawedAccount = state.riskData.find((item) => item.id === accountId);
+      const nextRecoveryTotals = state.recoveryData.totals
+        ? {
+            ...state.recoveryData.totals,
+            recoverable: Math.max(
+              state.recoveryData.totals.recoverable -
+                (thawedAccount && thawedAccount.isFrozen ? thawedAccount.currentBalance : 0),
+              0
+            ),
+            atRisk:
+              state.recoveryData.totals.atRisk +
+              (thawedAccount && thawedAccount.isFrozen ? thawedAccount.currentBalance : 0),
+            frozen: Math.max(
+              state.recoveryData.totals.frozen -
+                (thawedAccount && thawedAccount.isFrozen ? thawedAccount.currentBalance : 0),
+              0
+            )
+          }
+        : null;
+
+      return {
+        frozenAccounts: next,
+        riskData: state.riskData.map((item) =>
+          item.id === accountId ? { ...item, isFrozen: false, accountStatus: "UNDER REVIEW" } : item
+        ),
+        recoveryData: {
+          ...state.recoveryData,
+          totals: nextRecoveryTotals,
+          accounts: state.recoveryData.accounts.map((item) =>
+            thawedAccount && item.accountNumber === thawedAccount.accountNumber
+              ? { ...item, status: "AT RISK" }
               : item
           )
         }

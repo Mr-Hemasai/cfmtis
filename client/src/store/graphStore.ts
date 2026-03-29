@@ -17,6 +17,7 @@ type GraphState = {
   selectNode: (node: GraphNode | null) => void;
   selectEdge: (edge: GraphEdge | null) => void;
   markNodeFrozen: (accountId: string) => void;
+  unmarkNodeFrozen: (accountId: string) => void;
   markNodeInnocent: (accountId: string) => void;
 };
 
@@ -37,6 +38,16 @@ export const useGraphStore = create<GraphState>((set) => ({
       selectedNode:
         state.selectedNode?.id === accountId
           ? { ...state.selectedNode, isFrozen: true, nodeType: "Frozen" }
+          : state.selectedNode
+    })),
+  unmarkNodeFrozen: (accountId) =>
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === accountId ? { ...node, isFrozen: false, nodeType: "Suspect" } : node
+      ),
+      selectedNode:
+        state.selectedNode?.id === accountId
+          ? { ...state.selectedNode, isFrozen: false, nodeType: "Suspect" }
           : state.selectedNode
     })),
   markNodeInnocent: (accountId) =>

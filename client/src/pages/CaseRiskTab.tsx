@@ -8,7 +8,7 @@ import { formatINR, riskColor } from "../utils/format";
 export const CaseRiskTab = () => {
   const { analysisDone } = useOutletContext<{ analysisDone: boolean }>();
   const items = useCaseStore((state) => state.riskData);
-  const { freezeAccount, freezeCritical } = useFreeze();
+  const { freezeAccount, unfreezeAccount, freezeCritical } = useFreeze();
   const recoveryTotals = useCaseStore((state) => state.recoveryData.totals);
   const factors = [
     { label: "Rapid Splitting", value: 82, level: "HIGH" },
@@ -27,7 +27,7 @@ export const CaseRiskTab = () => {
 
   return (
     <div className="grid grid-cols-[1fr_320px] gap-6">
-      <RiskTable items={items} onFreeze={freezeAccount} />
+      <RiskTable items={items} onFreeze={freezeAccount} onUnfreeze={unfreezeAccount} />
       <aside className="flex flex-col gap-4">
         <div className="panel-card p-4">
           <div className="section-header">Risk Factors</div>

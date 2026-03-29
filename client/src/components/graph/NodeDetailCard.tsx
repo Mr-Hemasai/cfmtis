@@ -6,10 +6,12 @@ import { RiskPill } from "../ui/Badge";
 export const NodeDetailCard = ({
   node,
   onFreeze,
+  onUnfreeze,
   onMarkInnocent
 }: {
   node: GraphNode | null;
   onFreeze: (accountId: string) => void;
+  onUnfreeze: (accountId: string) => void;
   onMarkInnocent: (accountId: string) => void;
 }) => {
   if (!node) {
@@ -41,10 +43,9 @@ export const NodeDetailCard = ({
         <Button
           variant="danger"
           fullWidth
-          disabled={node.isFrozen}
-          onClick={() => onFreeze(node.id)}
+          onClick={() => (node.isFrozen ? onUnfreeze(node.id) : onFreeze(node.id))}
         >
-          {node.isFrozen ? "Frozen" : "Freeze Account"}
+          {node.isFrozen ? "Undo Freeze" : "Freeze Account"}
         </Button>
         <Button
           fullWidth

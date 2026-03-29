@@ -14,6 +14,7 @@ import { CasesListPage } from "./pages/CasesList";
 import { DashboardPage } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
 import { NewCasePage } from "./pages/NewCase";
+import { NotificationBanner } from "./components/ui/NotificationBanner";
 import { useAuthStore } from "./store/authStore";
 
 const Protected = ({ children }: { children: JSX.Element }) => {
@@ -23,6 +24,7 @@ const Protected = ({ children }: { children: JSX.Element }) => {
 
 export const App = () => (
   <BrowserRouter>
+    <NotificationBanner />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />

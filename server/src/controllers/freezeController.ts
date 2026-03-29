@@ -47,6 +47,47 @@ export const freezeAccount = async (req: AuthenticatedRequest, res: Response) =>
   );
 };
 
+export const unfreezeAccount = async (req: AuthenticatedRequest, res: Response) => {
+  const caseId = String(req.params.id);
+  const accountId = String(req.params.accountId);
+  const tracedAccount =
+    (await prisma.tracedAccount.findFirst({
+      where: {
+        caseId,
+        OR: [{ id: accountId }, { accountNumber: accountId }]
+      }
+    })) ?? null;
+
+  const account = tracedAccount
+    ? await prisma.tracedAccount.update({
+        where: { id: tracedAccount.id },
+        data: {
+          isFrozen: false,
+          accountStatus: "UNDER REVIEW"
+        }
+      })
+    : null;
+
+  const accountNumber = account?.accountNumber ?? accountId;
+
+  await prisma.freezeAction.deleteMany({
+    where: {
+      caseId,
+      accountNumber
+    }
+  });
+
+  return res.json(
+    account ?? {
+      id: accountId,
+      accountNumber,
+      isFrozen: false,
+      accountStatus: "UNDER REVIEW",
+      source: "ANALYZER_GRAPH"
+    }
+  );
+};
+
 export const freezeBulk = async (req: AuthenticatedRequest, res: Response) => {
   const caseId = String(req.params.id);
   const criticalAccounts = await prisma.tracedAccount.findMany({
