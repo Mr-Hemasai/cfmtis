@@ -5,6 +5,7 @@ import { GraphEdge, GraphNode } from "../types";
 type UseGraphOptions = {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  layerStats?: Record<number, { accounts: number; enteredAmount: number; leftAmount: number }>;
   onSelectNode: (node: GraphNode) => void;
   onSelectEdge: (edge: GraphEdge) => void;
 };
@@ -33,7 +34,7 @@ const nodeVisualRadius = (node: GraphNode) => {
 const compactAccountLabel = (accountNumber: string) =>
   accountNumber.length > 6 ? `...${accountNumber.slice(-6)}` : accountNumber;
 
-export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphOptions) => {
+export const useGraph = ({ nodes, edges, layerStats, onSelectNode, onSelectEdge }: UseGraphOptions) => {
   const ref = useRef<SVGSVGElement | null>(null);
   const svgRef = useRef<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -124,6 +125,33 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
       .attr("letter-spacing", "0.18em")
       .attr("fill", "#6f8192")
       .text((depth) => `LEVEL ${depth}`);
+
+    lane
+      .append("text")
+      .attr("x", (depth) => horizontalPadding + depth * (laneWidth + levelGap) + 14)
+      .attr("y", 72)
+      .attr("font-family", "IBM Plex Mono")
+      .attr("font-size", 9)
+      .attr("fill", "#5f7286")
+      .text((depth) => `Accounts: ${layerStats?.[depth]?.accounts ?? 0}`);
+
+    lane
+      .append("text")
+      .attr("x", (depth) => horizontalPadding + depth * (laneWidth + levelGap) + 14)
+      .attr("y", 88)
+      .attr("font-family", "IBM Plex Mono")
+      .attr("font-size", 9)
+      .attr("fill", "#5f7286")
+      .text((depth) => `In: ₹${Math.round(layerStats?.[depth]?.enteredAmount ?? 0).toLocaleString("en-IN")}`);
+
+    lane
+      .append("text")
+      .attr("x", (depth) => horizontalPadding + depth * (laneWidth + levelGap) + 14)
+      .attr("y", 104)
+      .attr("font-family", "IBM Plex Mono")
+      .attr("font-size", 9)
+      .attr("fill", "#5f7286")
+      .text((depth) => `Out: ₹${Math.round(layerStats?.[depth]?.leftAmount ?? 0).toLocaleString("en-IN")}`);
 
     const layoutNodes = nodes.map((node) => {
       const siblings = depthMap.get(node.chainDepth) ?? [node];
@@ -289,7 +317,7 @@ export const useGraph = ({ nodes, edges, onSelectNode, onSelectEdge }: UseGraphO
     return () => {
       svg.on(".zoom", null);
     };
-  }, [nodes, edges, onSelectNode, onSelectEdge]);
+  }, [nodes, edges, layerStats, onSelectNode, onSelectEdge]);
 
   const adjustZoom = (factor: number) => {
     if (!svgRef.current || !zoomRef.current) return;

@@ -57,6 +57,7 @@ export const RiskTable = ({
               <td className="px-4 py-3 text-secondary">
                 {item.transactionVelocity && item.transactionVelocity > 5 ? "Rapid withdrawal, " : ""}
                 {item.chainDepth > 2 ? "Deep chain node" : "Direct mule"}
+                {item.repeatedInOtherCases ? `, seen in ${item.repeatedCaseCount ?? 0} other case(s)` : ""}
               </td>
               <td className="px-4 py-3">
                 <Button variant="danger" onClick={() => (item.isFrozen ? onUnfreeze(item.id) : onFreeze(item.id))}>

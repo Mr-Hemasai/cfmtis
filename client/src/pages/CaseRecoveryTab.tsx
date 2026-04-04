@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { getFreezeLog } from "../api/freeze";
+import { Button } from "../components/ui/Button";
 import { RecoveryDonutChart } from "../components/recovery/DonutChart";
 import { KPICard } from "../components/recovery/KPICard";
 import { useCaseStore } from "../store/caseStore";
 import { formatINR } from "../utils/format";
+import { exportRecoveryReport } from "../utils/reportExport";
 
 export const CaseRecoveryTab = () => {
   const { analysisDone, caseId } = useOutletContext<{ analysisDone: boolean; caseId: string }>();
+  const activeCase = useCaseStore((state) => state.activeCase);
   const recovery = useCaseStore((state) => state.recoveryData);
   const [freezeLog, setFreezeLog] = useState<Array<{ id: string; accountNumber: string; timestamp: string; officer: { name: string } }>>([]);
 
@@ -28,9 +31,36 @@ export const CaseRecoveryTab = () => {
     accountsTraced: 0,
     recoveryPct: 0
   };
+  const handleExport = () => {
+    exportRecoveryReport({
+      caseId: activeCase?.complaintId ?? "Case",
+      victimName: activeCase?.victimName ?? "Unknown",
+      totals: [
+        { label: "Total Fraud", value: formatINR(totals.fraudAmount) },
+        { label: "Recoverable", value: formatINR(totals.recoverable) },
+        { label: "At Risk", value: formatINR(totals.atRisk) },
+        { label: "Accounts Traced", value: String(totals.accountsTraced) }
+      ],
+      accounts: recovery.accounts.map((account) => ({
+        accountNumber: account.accountNumber,
+        balance: formatINR(account.balance),
+        status: account.status
+      })),
+      freezeLog: freezeLog.map((item) => ({
+        accountNumber: item.accountNumber,
+        officer: item.officer.name,
+        timestamp: new Date(item.timestamp).toLocaleString("en-IN")
+      }))
+    });
+  };
 
   return (
     <div className="grid gap-6">
+      <div className="flex justify-end">
+        <Button variant="primary" onClick={handleExport}>
+          Export PDF
+        </Button>
+      </div>
       <div className="grid grid-cols-4 gap-4">
         <KPICard accent="var(--accent-red)" label="Total Fraud" value={formatINR(totals.fraudAmount)} />
         <KPICard accent="var(--accent-green)" label="Recoverable (Frozen)" value={formatINR(totals.recoverable)} />

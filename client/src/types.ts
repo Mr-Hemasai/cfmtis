@@ -53,6 +53,8 @@ export type GraphNode = {
   nodeType: "Victim" | "Mule" | "Suspect" | "Transfer" | "Frozen" | "Recovered";
   location: string | null;
   isFrozen: boolean;
+  isInnocent?: boolean;
+  baseRiskScore?: number;
 };
 
 export type GraphEdge = {
@@ -87,6 +89,17 @@ export type RiskAccount = {
   location?: string | null;
   transactionVelocity?: number | null;
   fragmentationScore?: number | null;
+  isInnocent?: boolean;
+  baseRiskScore?: number;
+  repeatedInOtherCases?: boolean;
+  repeatedCaseCount?: number;
+  relatedCases?: Array<{ caseId: string; complaintId: string; victimName: string }>;
+};
+
+export type CrossCaseRepeat = {
+  accountNumber: string;
+  caseCount: number;
+  cases: Array<{ caseId: string; complaintId: string; victimName: string }>;
 };
 
 export type RecoveryTotals = {

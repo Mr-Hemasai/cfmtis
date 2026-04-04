@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { GraphEdge, GraphNode } from "../types";
+import { applyInnocentRiskRule } from "../utils/innocentRisk";
 
 type GraphState = {
   nodes: GraphNode[];
@@ -27,7 +28,18 @@ export const useGraphStore = create<GraphState>((set) => ({
   selectedNode: null,
   selectedEdge: null,
   summary: null,
-  setGraph: ({ nodes, edges, summary }) => set({ nodes, edges, summary, selectedNode: null, selectedEdge: null }),
+  setGraph: ({ nodes, edges, summary }) =>
+    set({
+      nodes: nodes.map((node) => ({
+        ...node,
+        isInnocent: node.isInnocent ?? false,
+        baseRiskScore: node.baseRiskScore ?? node.riskScore
+      })),
+      edges,
+      summary,
+      selectedNode: null,
+      selectedEdge: null
+    }),
   selectNode: (selectedNode) => set({ selectedNode, selectedEdge: null }),
   selectEdge: (selectedEdge) => set({ selectedEdge, selectedNode: null }),
   markNodeFrozen: (accountId) =>
@@ -51,20 +63,11 @@ export const useGraphStore = create<GraphState>((set) => ({
           : state.selectedNode
     })),
   markNodeInnocent: (accountId) =>
-    set((state) => ({
-      nodes: state.nodes.map((node) =>
-        node.id === accountId
-          ? { ...node, nodeType: "Recovered", riskLevel: "LOW", riskScore: Math.min(node.riskScore, 15) }
-          : node
-      ),
-      selectedNode:
-        state.selectedNode?.id === accountId
-          ? {
-              ...state.selectedNode,
-              nodeType: "Recovered",
-              riskLevel: "LOW",
-              riskScore: Math.min(state.selectedNode.riskScore, 15)
-            }
-          : state.selectedNode
-    }))
+    set((state) => {
+      const nodes = applyInnocentRiskRule(state.nodes, state.edges, accountId);
+      return {
+        nodes,
+        selectedNode: state.selectedNode ? nodes.find((node) => node.id === state.selectedNode?.id) ?? null : null
+      };
+    })
 }));

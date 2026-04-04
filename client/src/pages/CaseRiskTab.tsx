@@ -4,10 +4,13 @@ import { Button } from "../components/ui/Button";
 import { useFreeze } from "../hooks/useFreeze";
 import { useCaseStore } from "../store/caseStore";
 import { formatINR, riskColor } from "../utils/format";
+import { exportRiskReport } from "../utils/reportExport";
 
 export const CaseRiskTab = () => {
   const { analysisDone } = useOutletContext<{ analysisDone: boolean }>();
+  const activeCase = useCaseStore((state) => state.activeCase);
   const items = useCaseStore((state) => state.riskData);
+  const repeatedAccounts = useCaseStore((state) => state.repeatedAccounts);
   const { freezeAccount, unfreezeAccount, freezeCritical } = useFreeze();
   const recoveryTotals = useCaseStore((state) => state.recoveryData.totals);
   const factors = [
@@ -24,11 +27,29 @@ export const CaseRiskTab = () => {
 
   const criticalCount = items.filter((item) => item.riskLevel === "CRITICAL").length;
   const frozenCount = items.filter((item) => item.isFrozen).length;
+  const handleExport = () => {
+    exportRiskReport({
+      caseId: activeCase?.complaintId ?? "Case",
+      victimName: activeCase?.victimName ?? "Unknown",
+      items: items.map((item) => ({
+        accountNumber: item.accountNumber,
+        holderName: item.holderName,
+        bankName: item.bankName,
+        currentBalance: formatINR(item.currentBalance),
+        riskScore: Math.round(item.riskScore),
+        riskLevel: item.riskLevel,
+        accountStatus: item.accountStatus
+      }))
+    });
+  };
 
   return (
     <div className="grid grid-cols-[1fr_320px] gap-6">
       <RiskTable items={items} onFreeze={freezeAccount} onUnfreeze={unfreezeAccount} />
       <aside className="flex flex-col gap-4">
+        <Button variant="primary" onClick={handleExport}>
+          Export PDF
+        </Button>
         <div className="panel-card p-4">
           <div className="section-header">Risk Factors</div>
           <div className="mt-4 grid gap-4">
@@ -43,6 +64,30 @@ export const CaseRiskTab = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+        <div className="panel-card p-4">
+          <div className="section-header">Cross-Case Repeats</div>
+          <div className="mt-4 grid gap-3">
+            {repeatedAccounts.length === 0 ? (
+              <div className="font-mono text-sm text-dim">No repeated account numbers found in other cases.</div>
+            ) : (
+              repeatedAccounts.map((item) => (
+                <div key={item.accountNumber} className="rounded-[8px] border border-border bg-card px-3 py-3">
+                  <div className="font-mono text-sm text-primary">{item.accountNumber}</div>
+                  <div className="mt-1 text-sm text-secondary">
+                    Seen in {item.caseCount} other case{item.caseCount === 1 ? "" : "s"}
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs text-secondary">
+                    {item.cases.map((relatedCase) => (
+                      <div key={`${item.accountNumber}-${relatedCase.caseId}`}>
+                        {relatedCase.complaintId} · {relatedCase.victimName}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
         <div className="panel-card p-4">

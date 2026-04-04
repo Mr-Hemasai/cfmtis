@@ -21,10 +21,12 @@ const ZoomIcon = ({ mode }: { mode: "in" | "out" | "reset" }) => (
 
 export const GraphCanvas = ({
   nodes: overrideNodes,
-  edges: overrideEdges
+  edges: overrideEdges,
+  layerStats
 }: {
   nodes?: GraphNode[];
   edges?: GraphEdge[];
+  layerStats?: Record<number, { accounts: number; enteredAmount: number; leftAmount: number }>;
 } = {}) => {
   const storeNodes = useGraphStore((state) => state.nodes);
   const storeEdges = useGraphStore((state) => state.edges);
@@ -33,6 +35,7 @@ export const GraphCanvas = ({
   const { ref, zoomIn, zoomOut, resetZoom } = useGraph({
     nodes: overrideNodes ?? storeNodes,
     edges: overrideEdges ?? storeEdges,
+    layerStats,
     onSelectNode: selectNode,
     onSelectEdge: selectEdge
   });
@@ -50,7 +53,11 @@ export const GraphCanvas = ({
           <ZoomIcon mode="reset" />
         </Button>
       </div>
-      <svg ref={ref} className="h-full min-h-[820px] w-full rounded-[12px] border border-border bg-[#fbfdff]" />
+      <svg
+        ref={ref}
+        data-graph-export="true"
+        className="h-full min-h-[820px] w-full rounded-[12px] border border-border bg-[#fbfdff]"
+      />
     </div>
   );
 };

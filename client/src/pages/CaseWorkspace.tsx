@@ -19,6 +19,7 @@ export const CaseWorkspacePage = () => {
   const setRiskData = useCaseStore((state) => state.setRiskData);
   const setRecoveryData = useCaseStore((state) => state.setRecoveryData);
   const setPatternAlerts = useCaseStore((state) => state.setPatternAlerts);
+  const setRepeatedAccounts = useCaseStore((state) => state.setRepeatedAccounts);
   const setUploadedFiles = useCaseStore((state) => state.setUploadedFiles);
   const riskData = useCaseStore((state) => state.riskData);
   const recoveryData = useCaseStore((state) => state.recoveryData);
@@ -62,12 +63,13 @@ export const CaseWorkspacePage = () => {
       setGraph({ nodes: graph.nodes ?? [], edges: graph.edges ?? [], summary: graph.summary ?? null });
       setPatternAlerts(graph.alerts ?? []);
       setRiskData(risk.items ?? []);
+      setRepeatedAccounts(risk.repeatedAccounts ?? []);
       setRecoveryData(recovery);
       setLoading(false);
     };
 
     load();
-  }, [cases, id, setActiveCase, setCases, setGraph, setPatternAlerts, setRecoveryData, setRiskData, setUploadedFiles]);
+  }, [cases, id, setActiveCase, setCases, setGraph, setPatternAlerts, setRecoveryData, setRepeatedAccounts, setRiskData, setUploadedFiles]);
 
   const analysisDone = useMemo(
     () =>
@@ -115,6 +117,12 @@ export const CaseWorkspacePage = () => {
               </Link>
               <Link to="/cases" className="rounded-[10px] border border-border bg-card px-4 py-3 text-sm text-primary transition hover:bg-hover">
                 Switch Cases
+              </Link>
+              <Link
+                to={`/case/${id}/flagged`}
+                className="rounded-[10px] border border-border bg-card px-4 py-3 text-sm text-primary transition hover:bg-hover"
+              >
+                Flagged Accounts
               </Link>
             </div>
           </div>

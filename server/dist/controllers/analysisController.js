@@ -7,6 +7,96 @@ const toRecord = (value, fallback) => value && typeof value === "object" ? value
 const normalizeAccount = (value) => String(value ?? "")
     .trim()
     .replace(/\s+/g, "");
+const getCrossCaseRepeats = async (caseId, accountNumbers) => {
+    const normalizedAccounts = [...new Set(accountNumbers.map(normalizeAccount).filter(Boolean))];
+    if (!normalizedAccounts.length) {
+        return {
+            repeats: [],
+            repeatedSet: new Set()
+        };
+    }
+    const [tracedAccounts, receivedTransactions, sentTransactions] = await Promise.all([
+        prisma.tracedAccount.findMany({
+            where: {
+                caseId: { not: caseId },
+                accountNumber: { in: normalizedAccounts }
+            },
+            select: {
+                accountNumber: true,
+                case: {
+                    select: {
+                        id: true,
+                        complaintId: true,
+                        victimName: true
+                    }
+                }
+            }
+        }),
+        prisma.transaction.findMany({
+            where: {
+                caseId: { not: caseId },
+                receiverAccount: { in: normalizedAccounts }
+            },
+            select: {
+                receiverAccount: true,
+                case: {
+                    select: {
+                        id: true,
+                        complaintId: true,
+                        victimName: true
+                    }
+                }
+            }
+        }),
+        prisma.transaction.findMany({
+            where: {
+                caseId: { not: caseId },
+                senderAccount: { in: normalizedAccounts }
+            },
+            select: {
+                senderAccount: true,
+                case: {
+                    select: {
+                        id: true,
+                        complaintId: true,
+                        victimName: true
+                    }
+                }
+            }
+        })
+    ]);
+    const caseMap = new Map();
+    const register = (accountNumber, relatedCase) => {
+        const normalized = normalizeAccount(accountNumber);
+        if (!normalized)
+            return;
+        const existing = caseMap.get(normalized) ?? new Map();
+        existing.set(relatedCase.id, {
+            caseId: relatedCase.id,
+            complaintId: relatedCase.complaintId,
+            victimName: relatedCase.victimName
+        });
+        caseMap.set(normalized, existing);
+    };
+    tracedAccounts.forEach((item) => register(item.accountNumber, item.case));
+    receivedTransactions.forEach((item) => register(item.receiverAccount, item.case));
+    sentTransactions.forEach((item) => register(item.senderAccount, item.case));
+    const repeats = normalizedAccounts
+        .map((accountNumber) => {
+        const cases = [...(caseMap.get(accountNumber)?.values() ?? [])];
+        return {
+            accountNumber,
+            caseCount: cases.length,
+            cases
+        };
+    })
+        .filter((item) => item.caseCount > 0)
+        .sort((left, right) => right.caseCount - left.caseCount || left.accountNumber.localeCompare(right.accountNumber));
+    return {
+        repeats,
+        repeatedSet: new Set(repeats.map((item) => item.accountNumber))
+    };
+};
 const getFrozenAccountNumbers = (caseRecord) => new Set((caseRecord.freezeActions ?? [])
     .map((item) => String(item.accountNumber ?? "").trim())
     .filter(Boolean));
@@ -148,7 +238,7 @@ const toAnalyzerGraph = (caseRecord, analysis) => {
         }
     };
 };
-const toAnalyzerRisk = (caseRecord, analysis) => {
+const toAnalyzerRisk = async (caseRecord, analysis) => {
     const trailGraph = buildCaseTrailGraph(caseRecord);
     const patternInsights = toRecord(analysis.patternInsights, {
         repeatedAccounts: [],
@@ -170,12 +260,15 @@ const toAnalyzerRisk = (caseRecord, analysis) => {
     const repeatedAccounts = new Set(patternInsights.repeatedAccounts ?? []);
     const muleAccounts = new Set(patternInsights.muleAccounts ?? []);
     const frozenAccounts = getFrozenAccountNumbers(caseRecord);
+    const crossCaseRepeats = await getCrossCaseRepeats(caseRecord.id, trailGraph.nodes.map((node) => String(node.accountNumber ?? node.id ?? "")));
     const items = trailGraph.nodes
         .map((node, index) => {
         const accountNumber = String(node.accountNumber ?? node.id ?? `account-${index}`);
         const isVictim = normalizeAccount(accountNumber) === normalizeAccount(trailGraph.rootAccount);
         const isMule = muleAccounts.has(accountNumber);
         const isRepeated = repeatedAccounts.has(accountNumber);
+        const relatedRepeat = crossCaseRepeats.repeats.find((item) => item.accountNumber === normalizeAccount(accountNumber));
+        const isCrossCaseRepeat = Boolean(relatedRepeat);
         const isFrozen = frozenAccounts.has(accountNumber);
         const riskScore = isVictim
             ? 8
@@ -184,10 +277,11 @@ const toAnalyzerRisk = (caseRecord, analysis) => {
                 Number(node.outgoingCount ?? 0) * 10 +
                 (node.withdrawalDetected ? 24 : 0) +
                 (isMule ? 18 : 0) +
-                (isRepeated ? 12 : 0));
+                (isRepeated ? 12 : 0) +
+                (isCrossCaseRepeat ? 15 : 0));
         const riskLevel = (isVictim
             ? "LOW"
-            : isMule || isRepeated || node.withdrawalDetected
+            : isMule || isRepeated || isCrossCaseRepeat || node.withdrawalDetected
                 ? "CRITICAL"
                 : Number(node.depth ?? 0) >= 2
                     ? "HIGH"
@@ -211,11 +305,15 @@ const toAnalyzerRisk = (caseRecord, analysis) => {
             transactionVelocity: Number(node.outgoingCount ?? 0),
             fragmentationScore: Number(node.totalIncoming ?? 0) > 0
                 ? Math.min(Number(node.outgoingCount ?? 0) / Math.max(Number(node.totalIncoming ?? 0) / 10000, 1), 1)
-                : 0
+                : 0,
+            repeatedInOtherCases: isCrossCaseRepeat,
+            repeatedCaseCount: relatedRepeat?.caseCount ?? 0,
+            relatedCases: relatedRepeat?.cases ?? []
         };
     });
     return {
         items,
+        repeatedAccounts: crossCaseRepeats.repeats,
         factors: [
             {
                 label: "Money Trail Completeness",
@@ -451,14 +549,24 @@ export const getRisk = async (req, res) => {
         return res.status(404).json({ message: "Case not found" });
     setNoStore(res);
     if (caseRecord.analysis) {
-        return res.json(toAnalyzerRisk(caseRecord, caseRecord.analysis));
+        return res.json(await toAnalyzerRisk(caseRecord, caseRecord.analysis));
     }
     const accounts = await prisma.tracedAccount.findMany({
         where: { caseId },
         orderBy: { riskScore: "desc" }
     });
+    const crossCaseRepeats = await getCrossCaseRepeats(caseId, accounts.map((account) => String(account.accountNumber ?? "")));
     return res.json({
-        items: accounts,
+        items: accounts.map((account) => {
+            const relatedRepeat = crossCaseRepeats.repeats.find((item) => item.accountNumber === normalizeAccount(account.accountNumber));
+            return {
+                ...account,
+                repeatedInOtherCases: Boolean(relatedRepeat),
+                repeatedCaseCount: relatedRepeat?.caseCount ?? 0,
+                relatedCases: relatedRepeat?.cases ?? []
+            };
+        }),
+        repeatedAccounts: crossCaseRepeats.repeats,
         factors: [
             { label: "Rapid Splitting", value: 82, level: "HIGH" },
             { label: "Transaction Velocity", value: 61, level: "MEDIUM" },

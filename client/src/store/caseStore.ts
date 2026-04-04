@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { CaseRecord, CaseSummary, PatternAlert, RecoveryTotals, RiskAccount } from "../types";
+import { CaseRecord, CaseSummary, CrossCaseRepeat, GraphNode, PatternAlert, RecoveryTotals, RiskAccount } from "../types";
+import { syncRiskAccountsFromGraph } from "../utils/innocentRisk";
 
 type CaseState = {
   cases: CaseSummary[];
@@ -11,6 +12,7 @@ type CaseState = {
     log: Array<{ timestamp: string; level: string; message: string }>;
   };
   patternAlerts: PatternAlert[];
+  repeatedAccounts: CrossCaseRepeat[];
   analysis: { status: string; progress: number; currentStep: string; steps: string[]; error?: string };
   uploadedFiles: Array<Record<string, unknown>>;
   frozenAccounts: Set<string>;
@@ -19,10 +21,12 @@ type CaseState = {
   setRiskData: (items: RiskAccount[]) => void;
   setRecoveryData: (payload: CaseState["recoveryData"]) => void;
   setPatternAlerts: (alerts: PatternAlert[]) => void;
+  setRepeatedAccounts: (items: CrossCaseRepeat[]) => void;
   setAnalysis: (analysis: Partial<CaseState["analysis"]>) => void;
   setUploadedFiles: (files: Array<Record<string, unknown>>) => void;
   markFrozen: (accountId: string) => void;
   unmarkFrozen: (accountId: string) => void;
+  syncRiskFromGraph: (nodes: GraphNode[]) => void;
   updateCaseAnalysisStatus: (caseId: string, analysisStatus: CaseRecord["analysisStatus"]) => void;
 };
 
@@ -32,12 +36,20 @@ export const useCaseStore = create<CaseState>((set) => ({
   riskData: [],
   recoveryData: { totals: null, accounts: [], log: [] },
   patternAlerts: [],
+  repeatedAccounts: [],
   analysis: { status: "PENDING", progress: 0, currentStep: "", steps: [], error: undefined },
   uploadedFiles: [],
   frozenAccounts: new Set(),
   setCases: (cases) => set({ cases }),
   setActiveCase: (record) => set({ activeCase: record }),
-  setRiskData: (items) => set({ riskData: items }),
+  setRiskData: (items) =>
+    set({
+      riskData: items.map((item) => ({
+        ...item,
+        isInnocent: item.isInnocent ?? false,
+        baseRiskScore: item.baseRiskScore ?? item.riskScore
+      }))
+    }),
   setRecoveryData: (payload) => set({ recoveryData: payload }),
   setPatternAlerts: (alerts) =>
     set({
@@ -54,9 +66,14 @@ export const useCaseStore = create<CaseState>((set) => ({
         message: String(alert?.message ?? "Analyzer detected a suspicious pattern.")
       }))
     }),
+  setRepeatedAccounts: (repeatedAccounts) => set({ repeatedAccounts }),
   setAnalysis: (analysis) =>
     set((state) => ({ analysis: { ...state.analysis, ...analysis } })),
   setUploadedFiles: (files) => set({ uploadedFiles: files }),
+  syncRiskFromGraph: (nodes) =>
+    set((state) => ({
+      riskData: syncRiskAccountsFromGraph(state.riskData, nodes)
+    })),
   updateCaseAnalysisStatus: (caseId, analysisStatus) =>
     set((state) => ({
       activeCase:

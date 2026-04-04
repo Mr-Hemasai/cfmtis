@@ -6,6 +6,7 @@ import { AnalyzerTimelinePage } from "./pages/AnalyzerTimeline";
 import { AnalyzerWithdrawalsPage } from "./pages/AnalyzerWithdrawals";
 import { AdminPage } from "./pages/Admin";
 import { CaseComplaintTab } from "./pages/CaseComplaintTab";
+import { CaseFlaggedAccountsPage } from "./pages/CaseFlaggedAccountsPage";
 import { CaseGraphTab } from "./pages/CaseGraphTab";
 import { CaseRecoveryTab } from "./pages/CaseRecoveryTab";
 import { CaseRiskTab } from "./pages/CaseRiskTab";
@@ -38,6 +39,7 @@ export const App = () => (
       <Route path="/case/new" element={<Protected><NewCasePage /></Protected>} />
       <Route path="/case/:id" element={<Protected><CaseWorkspacePage /></Protected>}>
         <Route path="complaint" element={<CaseComplaintTab />} />
+        <Route path="flagged" element={<CaseFlaggedAccountsPage />} />
         <Route path="graph" element={<CaseGraphTab />} />
         <Route path="risk" element={<CaseRiskTab />} />
         <Route path="recovery" element={<CaseRecoveryTab />} />
